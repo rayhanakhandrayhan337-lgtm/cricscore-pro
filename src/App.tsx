@@ -113,8 +113,13 @@ function HomeScreen({ user, onLogout, onAdmin }: { user: User; onLogout: () => v
     { icon: '🏏', label: 'Custom' },
   ];
 
-  if (activeMatch && activeMatch.status === 'live') {
+  if (activeMatch && activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
     return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
+  }
+  
+  // If match is live but has no innings data, show summary instead
+  if (activeMatch && activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
+    return <MatchSummaryScreen match={activeMatch} onBack={() => setActiveMatch(null)} />;
   }
 
   if (showMatchSummary) {
@@ -147,10 +152,10 @@ function HomeScreen({ user, onLogout, onAdmin }: { user: User; onLogout: () => v
 
       {/* Tab Content */}
       <div className="p-4">
-        {tab === 0 && <DashboardTab user={user} onOpenMatch={(m) => m.status === 'live' ? setActiveMatch(m) : setShowMatchSummary(m)} />}
+        {tab === 0 && <DashboardTab user={user} onOpenMatch={(m) => { if (m.status === 'live' && m.innings?.length > 0) setActiveMatch(m); else setShowMatchSummary(m); }} />}
         {tab === 1 && <LiveTab user={user} onOpenMatch={(m) => setActiveMatch(m)} />}
-        {tab === 2 && <LeagueTab user={user} onCreateLeague={() => setShowLeagueCreate(true)} onCreateMatch={(l) => setLeagueMatchSetup(l)} onOpenMatch={(m) => m.status === 'live' ? setActiveMatch(m) : setShowMatchSummary(m)} />}
-        {tab === 3 && <CustomTab user={user} onCreateMatch={() => setShowCreateMatch(true)} onOpenMatch={(m) => m.status === 'live' ? setActiveMatch(m) : setShowMatchSummary(m)} />}
+        {tab === 2 && <LeagueTab user={user} onCreateLeague={() => setShowLeagueCreate(true)} onCreateMatch={(l) => setLeagueMatchSetup(l)} onOpenMatch={(m) => { if (m.status === 'live' && m.innings?.length > 0) setActiveMatch(m); else setShowMatchSummary(m); }} />}
+        {tab === 3 && <CustomTab user={user} onCreateMatch={() => setShowCreateMatch(true)} onOpenMatch={(m) => { if (m.status === 'live' && m.innings?.length > 0) setActiveMatch(m); else setShowMatchSummary(m); }} />}
       </div>
 
       {/* Bottom Navigation */}
@@ -173,10 +178,11 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
   const liveMatches = matches.filter(m => m.status === 'live');
   const wins = completedMatches.filter(m => {
     if (!m.result) return false;
-    const team1Id = m.team1.id;
-    const team2Id = m.team2.id;
-    // Check if user's team won
-    return m.result.includes(m.battingFirst === team1Id ? m.team1.name : m.team2.name);
+    // Check if user's team name appears in the winning part of result
+    const team1Name = m.team1.name;
+    const team2Name = m.team2.name;
+    // Result format: "TeamName won by X runs/wickets"
+    return m.result.includes(team1Name + ' won') || m.result.includes(team2Name + ' won');
   }).length;
 
   const recentMatches = [...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
@@ -224,9 +230,9 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
 
 // ============= MATCH CARD =============
 function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => void; onDelete: () => void }) {
-  const inn1 = match.innings[0];
+  const inn1 = match.innings?.[0];
   const score1 = inn1 ? `${inn1.runs}/${inn1.wickets} (${inn1.overs}.${inn1.balls})` : 'Yet to bat';
-  const inn2 = match.innings[1];
+  const inn2 = match.innings?.[1];
   const score2 = inn2 ? `${inn2.runs}/${inn2.wickets} (${inn2.overs}.${inn2.balls})` : 'Yet to bat';
 
   return (
@@ -263,10 +269,11 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
 
 // ============= LIVE TAB =============
 function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) => void }) {
-  const liveMatches = getMatches().filter(m => m.status === 'live');
+  const liveMatches = getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0);
 
   const handleShare = (match: Match) => {
-    const text = `🏏 LIVE: ${match.team1.name} vs ${match.team2.name} at ${match.venue}\nScore: ${match.innings[match.currentInnings]?.runs || 0}/${match.innings[match.currentInnings]?.wickets || 0}`;
+    const currentInnings = match.innings?.[match.currentInnings];
+    const text = `🏏 LIVE: ${match.team1.name} vs ${match.team2.name} at ${match.venue}\nScore: ${currentInnings?.runs || 0}/${currentInnings?.wickets || 0}`;
     if (navigator.share) {
       navigator.share({ title: 'CricScore Pro - Live Match', text });
     } else {
@@ -636,26 +643,44 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 // ============= LIVE SCORING SCREEN =============
 function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: () => void; onUpdate: (m: Match) => void }) {
   const innings = match.innings[match.currentInnings];
+  
+  // Safety check - if innings doesn't exist, show error
+  if (!innings) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="text-5xl">⚠️</div>
+          <h2 className="text-xl font-bold">Match Data Error</h2>
+          <p className="text-gray-400">Unable to load match innings data.</p>
+          <button onClick={onBack} className="bg-green-600 px-6 py-2 rounded-lg font-bold">Go Back</button>
+        </div>
+      </div>
+    );
+  }
+
   const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
   const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
-  const striker = innings.batsmenStats[innings.currentBatsmen[0]];
-  const nonStriker = innings.batsmenStats[innings.currentBatsmen[1]];
-  const currentBowler = innings.bowlersStats[innings.currentBowler];
+  const striker = innings.batsmenStats?.[innings.currentBatsmen?.[0]];
+  const nonStriker = innings.batsmenStats?.[innings.currentBatsmen?.[1]];
+  const currentBowler = innings.bowlersStats?.[innings.currentBowler];
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
 
-  const target = match.currentInnings === 1 ? match.innings[0].runs + 1 : null;
-  const remaining = target ? target - innings.runs : null;
+  const firstInnings = match.innings[0];
+  const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
+  const remaining = target !== null ? target - innings.runs : null;
   const ballsRemaining = (match.totalOvers * 6) - (innings.overs * 6 + innings.balls);
-  const runRate = innings.overs + innings.balls / 6 > 0 ? (innings.runs / (innings.overs + innings.balls / 6)).toFixed(2) : '0.00';
-  const reqRunRate = remaining && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
+  const totalBallsBowled = innings.overs + innings.balls / 6;
+  const runRate = totalBallsBowled > 0 ? (innings.runs / totalBallsBowled).toFixed(2) : '0.00';
+  const reqRunRate = remaining !== null && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
 
   const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
 
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
+    if (!inn) return;
     
     const ballEvent: BallEvent = {
       id: `ball_${Date.now()}_${Math.random()}`,
@@ -688,8 +713,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     if (isNoBall) inn.extras.noBalls += runs;
 
     // Update batsman stats
-    const batsmanStat = inn.batsmenStats[inn.currentBatsmen[0]];
-    if (!isWide) {
+    const batsmanStat = inn.batsmenStats?.[inn.currentBatsmen[0]];
+    if (batsmanStat && !isWide) {
       batsmanStat.runs += runs;
       batsmanStat.balls += 1;
       if (runs === 4) batsmanStat.fours += 1;
@@ -697,22 +722,26 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     }
 
     // Update bowler stats
-    const bowlerStat = inn.bowlersStats[inn.currentBowler];
-    bowlerStat.runs += runs;
-    if (!isWide && !isNoBall) {
-      bowlerStat.balls += 1;
-      if (bowlerStat.balls === 6) {
-        bowlerStat.overs += 1;
-        bowlerStat.balls = 0;
+    const bowlerStat = inn.bowlersStats?.[inn.currentBowler];
+    if (bowlerStat) {
+      bowlerStat.runs += runs;
+      if (!isWide && !isNoBall) {
+        bowlerStat.balls += 1;
+        if (bowlerStat.balls === 6) {
+          bowlerStat.overs += 1;
+          bowlerStat.balls = 0;
+        }
       }
+      if (isWide || isNoBall) bowlerStat.extras += runs;
     }
-    if (isWide || isNoBall) bowlerStat.extras += runs;
 
     // Handle wicket
     if (isWicket && !isWide) {
-      batsmanStat.isOut = true;
-      batsmanStat.dismissal = wicketType || 'out';
-      bowlerStat.wickets += 1;
+      if (batsmanStat) {
+        batsmanStat.isOut = true;
+        batsmanStat.dismissal = wicketType || 'out';
+      }
+      if (bowlerStat) bowlerStat.wickets += 1;
       inn.wickets += 1;
 
       if (inn.wickets >= 10) {
@@ -760,7 +789,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       const inn2 = newMatch.innings[1];
       let result = '';
       
-      if (inn2.runs >= inn1.runs + 1) {
+      if (!inn1 || !inn2) {
+        result = 'Match completed (incomplete data)';
+      } else if (inn2.runs >= inn1.runs + 1) {
         const wicketsLeft = 10 - inn2.wickets;
         result = `${getTeamName(inn2.battingTeamId)} won by ${wicketsLeft} wickets`;
       } else if (inn1.runs > inn2.runs) {
@@ -782,6 +813,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const startSecondInnings = () => {
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const firstInnings = newMatch.innings[0];
+    if (!firstInnings) return;
     const secondBattingTeamId = firstInnings.bowlingTeamId;
     const secondBowlingTeamId = firstInnings.battingTeamId;
     
@@ -836,12 +868,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const handleUndo = () => {
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
-    if (inn.ballEvents.length === 0) return;
+    if (!inn || !inn.ballEvents || inn.ballEvents.length === 0) return;
     
     const lastEvent = inn.ballEvents.pop()!;
+    if (!lastEvent) return;
     
     // Reverse the ball event
-    inn.runs -= lastEvent.runs;
+    inn.runs -= (lastEvent.runs || 0);
     if (!lastEvent.isWide && !lastEvent.isNoBall) {
       inn.balls -= 1;
       if (inn.balls < 0) {
@@ -849,29 +882,31 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         inn.balls = 5;
       }
     }
-    if (lastEvent.isWide) inn.extras.wides -= lastEvent.runs;
-    if (lastEvent.isNoBall) inn.extras.noBalls -= lastEvent.runs;
+    if (lastEvent.isWide) inn.extras.wides -= (lastEvent.runs || 0);
+    if (lastEvent.isNoBall) inn.extras.noBalls -= (lastEvent.runs || 0);
 
-    const batsmanStat = inn.batsmenStats[lastEvent.batsmanId];
-    if (!lastEvent.isWide) {
-      batsmanStat.runs -= lastEvent.runs;
+    const batsmanStat = inn.batsmenStats?.[lastEvent.batsmanId];
+    if (batsmanStat && !lastEvent.isWide) {
+      batsmanStat.runs -= (lastEvent.runs || 0);
       batsmanStat.balls -= 1;
       if (lastEvent.runs === 4) batsmanStat.fours -= 1;
       if (lastEvent.runs === 6) batsmanStat.sixes -= 1;
     }
 
-    const bowlerStat = inn.bowlersStats[lastEvent.bowlerId];
-    bowlerStat.runs -= lastEvent.runs;
-    if (!lastEvent.isWide && !lastEvent.isNoBall) {
-      bowlerStat.balls -= 1;
-      if (bowlerStat.balls < 0) {
-        bowlerStat.overs -= 1;
-        bowlerStat.balls = 5;
+    const bowlerStat = inn.bowlersStats?.[lastEvent.bowlerId];
+    if (bowlerStat) {
+      bowlerStat.runs -= (lastEvent.runs || 0);
+      if (!lastEvent.isWide && !lastEvent.isNoBall) {
+        bowlerStat.balls -= 1;
+        if (bowlerStat.balls < 0) {
+          bowlerStat.overs -= 1;
+          bowlerStat.balls = 5;
+        }
       }
+      if (lastEvent.isWide || lastEvent.isNoBall) bowlerStat.extras -= (lastEvent.runs || 0);
     }
-    if (lastEvent.isWide || lastEvent.isNoBall) bowlerStat.extras -= lastEvent.runs;
 
-    if (lastEvent.isWicket) {
+    if (lastEvent.isWicket && batsmanStat && bowlerStat) {
       batsmanStat.isOut = false;
       batsmanStat.dismissal = undefined;
       bowlerStat.wickets -= 1;
@@ -884,6 +919,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   // Innings break screen
   if (inningBreak) {
     const firstInnings = match.innings[0];
+    if (!firstInnings) {
+      return (
+        <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+          <div className="text-center space-y-4">
+            <p className="text-gray-400">No innings data available</p>
+            <button onClick={onBack} className="bg-green-600 px-6 py-2 rounded-lg font-bold">Go Back</button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
         <div className="text-center space-y-4">
@@ -1028,11 +1073,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       <div className="px-4 mt-4">
         <p className="text-xs text-gray-400 mb-2">This Over:</p>
         <div className="flex gap-1 flex-wrap">
-          {innings.ballEvents.filter(e => e.over === innings.overs && (innings.balls > 0 ? e.over === innings.overs : e.over === innings.overs - 1)).slice(-12).map((e, i) => (
+          {(innings.ballEvents || []).filter(e => e.over === innings.overs && (innings.balls > 0 ? e.over === innings.overs : e.over === innings.overs - 1)).slice(-12).map((e, i) => (
             <span key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-              e.isWicket ? 'bg-red-600' : e.runs === 4 ? 'bg-blue-600' : e.runs === 6 ? 'bg-green-600' : e.isWide ? 'bg-yellow-600' : e.isNoBall ? 'bg-orange-600' : e.runs === 0 ? 'bg-gray-700' : 'bg-gray-600'
+              e.isWicket ? 'bg-red-600' : (e.runs || 0) === 4 ? 'bg-blue-600' : (e.runs || 0) === 6 ? 'bg-green-600' : e.isWide ? 'bg-yellow-600' : e.isNoBall ? 'bg-orange-600' : (e.runs || 0) === 0 ? 'bg-gray-700' : 'bg-gray-600'
             }`}>
-              {e.isWicket ? 'W' : e.isWide ? 'Wd' : e.isNoBall ? 'Nb' : e.runs}
+              {e.isWicket ? 'W' : e.isWide ? 'Wd' : e.isNoBall ? 'Nb' : (e.runs ?? 0)}
             </span>
           ))}
         </div>
@@ -1083,8 +1128,8 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
   const getTeam = (teamId: string) => teamId === match.team1.id ? match.team1 : match.team2;
 
   const handleShare = () => {
-    const inn1 = match.innings[0];
-    const inn2 = match.innings[1];
+    const inn1 = match.innings?.[0];
+    const inn2 = match.innings?.[1];
     let text = `🏏 Match Summary\n\n`;
     text += `${match.team1.name} vs ${match.team2.name}\n`;
     text += `Venue: ${match.venue}\n\n`;
@@ -1118,20 +1163,20 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
 
         {/* Score Overview */}
         <div className="bg-gray-800 rounded-xl p-4">
-          {match.innings.map((inn, idx) => (
+          {match.innings && match.innings.map((inn, idx) => (
             <div key={idx} className={`${idx > 0 ? 'mt-3 pt-3 border-t border-gray-700' : ''}`}>
               <div className="flex justify-between items-center">
-                <span className="font-bold">{getTeamName(inn.battingTeamId)}</span>
-                <span className="text-xl font-bold text-green-400">{inn.runs}/{inn.wickets} ({inn.overs}.{inn.balls})</span>
+                <span className="font-bold">{inn ? getTeamName(inn.battingTeamId) : 'Unknown'}</span>
+                <span className="text-xl font-bold text-green-400">{inn ? `${inn.runs}/${inn.wickets} (${inn.overs}.${inn.balls})` : '-'}</span>
               </div>
             </div>
           ))}
         </div>
 
         {/* Batting Scorecards */}
-        {match.innings.map((inn, idx) => (
+        {match.innings && match.innings.map((inn, idx) => (
           <div key={idx} className="bg-gray-800 rounded-xl p-4">
-            <h3 className="font-bold text-sm text-green-400 mb-3">🏏 Batting - {getTeamName(inn.battingTeamId)}</h3>
+            <h3 className="font-bold text-sm text-green-400 mb-3">🏏 Batting - {inn ? getTeamName(inn.battingTeamId) : 'Unknown'}</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 text-xs border-b border-gray-700">
@@ -1144,30 +1189,30 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
                 </tr>
               </thead>
               <tbody>
-                {Object.values(inn.batsmenStats).map((b, i) => (
-                  <tr key={i} className={`border-b border-gray-700/30 ${b.isOut ? 'text-gray-400' : 'text-white'}`}>
+                {inn?.batsmenStats && Object.values(inn.batsmenStats).map((b, i) => (
+                  <tr key={i} className={`border-b border-gray-700/30 ${b?.isOut ? 'text-gray-400' : 'text-white'}`}>
                     <td className="py-1 text-xs truncate max-w-[100px]">
-                      {b.playerName} {b.isOut && <span className="text-red-400 text-[10px]">({b.dismissal})</span>}
+                      {b?.playerName || 'Unknown'} {b?.isOut && <span className="text-red-400 text-[10px]">({b.dismissal})</span>}
                     </td>
-                    <td className="text-center font-bold">{b.runs}</td>
-                    <td className="text-center text-gray-400">{b.balls}</td>
-                    <td className="text-center text-blue-400">{b.fours}</td>
-                    <td className="text-center text-green-400">{b.sixes}</td>
-                    <td className="text-center text-gray-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(0) : '0'}</td>
+                    <td className="text-center font-bold">{b?.runs || 0}</td>
+                    <td className="text-center text-gray-400">{b?.balls || 0}</td>
+                    <td className="text-center text-blue-400">{b?.fours || 0}</td>
+                    <td className="text-center text-green-400">{b?.sixes || 0}</td>
+                    <td className="text-center text-gray-400">{b?.balls && b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(0) : '0'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <div className="mt-2 text-xs text-gray-400">
-              Extras: {inn.extras.wides + inn.extras.noBalls} (wd {inn.extras.wides}, nb {inn.extras.noBalls})
+              Extras: {(inn?.extras?.wides || 0) + (inn?.extras?.noBalls || 0)} (wd {inn?.extras?.wides || 0}, nb {inn?.extras?.noBalls || 0})
             </div>
           </div>
         ))}
 
         {/* Bowling Scorecards */}
-        {match.innings.map((inn, idx) => (
+        {match.innings && match.innings.map((inn, idx) => (
           <div key={idx} className="bg-gray-800 rounded-xl p-4">
-            <h3 className="font-bold text-sm text-purple-400 mb-3">⚾ Bowling - {getTeamName(inn.bowlingTeamId)}</h3>
+            <h3 className="font-bold text-sm text-purple-400 mb-3">⚾ Bowling - {inn ? getTeamName(inn.bowlingTeamId) : 'Unknown'}</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 text-xs border-b border-gray-700">
@@ -1179,13 +1224,13 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
                 </tr>
               </thead>
               <tbody>
-                {Object.values(inn.bowlersStats).filter(b => b.overs > 0 || b.balls > 0 || b.wickets > 0).map((b, i) => (
+                {inn?.bowlersStats && Object.values(inn.bowlersStats).filter(b => (b.overs || 0) > 0 || (b.balls || 0) > 0 || (b.wickets || 0) > 0).map((b, i) => (
                   <tr key={i} className="border-b border-gray-700/30">
-                    <td className="py-1 text-xs truncate max-w-[100px]">{b.playerName}</td>
-                    <td className="text-center">{b.overs}.{b.balls}</td>
-                    <td className="text-center">{b.runs}</td>
-                    <td className="text-center font-bold text-green-400">{b.wickets}</td>
-                    <td className="text-center text-gray-400">{(b.overs + b.balls / 6) > 0 ? (b.runs / (b.overs + b.balls / 6)).toFixed(1) : '0.0'}</td>
+                    <td className="py-1 text-xs truncate max-w-[100px]">{b?.playerName || 'Unknown'}</td>
+                    <td className="text-center">{b?.overs || 0}.{b?.balls || 0}</td>
+                    <td className="text-center">{b?.runs || 0}</td>
+                    <td className="text-center font-bold text-green-400">{b?.wickets || 0}</td>
+                    <td className="text-center text-gray-400">{(b && (b.overs + b.balls / 6) > 0) ? (b.runs / (b.overs + b.balls / 6)).toFixed(1) : '0.0'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1428,8 +1473,8 @@ function updateLeagueStandings(match: Match) {
   const league = leagues.find(l => l.id === match.leagueId);
   if (!league) return;
 
-  const inn1 = match.innings[0];
-  const inn2 = match.innings[1];
+  const inn1 = match.innings?.[0];
+  const inn2 = match.innings?.[1];
   if (!inn1 || !inn2) return;
 
   const battingFirstTeamId = inn1.battingTeamId;
@@ -1437,8 +1482,8 @@ function updateLeagueStandings(match: Match) {
 
   // Determine winner
   let winnerId = '';
-  if (inn2.runs > inn1.runs) winnerId = battingSecondTeamId;
-  else if (inn1.runs > inn2.runs) winnerId = battingFirstTeamId;
+  if ((inn2.runs || 0) > (inn1.runs || 0)) winnerId = battingSecondTeamId;
+  else if ((inn1.runs || 0) > (inn2.runs || 0)) winnerId = battingFirstTeamId;
 
   // Update team stats
   league.teams = league.teams.map(team => {
@@ -1450,10 +1495,10 @@ function updateLeagueStandings(match: Match) {
       t.played += 1;
       const myInnings = isTeam1 ? inn1 : inn2;
       const oppInnings = isTeam1 ? inn2 : inn1;
-      t.runsScored += myInnings.runs;
-      t.runsConceded += oppInnings.runs;
-      t.oversPlayed += myInnings.overs + myInnings.balls / 6;
-      t.oversBowled += oppInnings.overs + oppInnings.balls / 6;
+      t.runsScored += (myInnings.runs || 0);
+      t.runsConceded += (oppInnings.runs || 0);
+      t.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
+      t.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
 
       if (winnerId === team.id) {
         t.won += 1;
