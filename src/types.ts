@@ -4,6 +4,7 @@ export interface User {
   name: string;
   isAdmin: boolean;
   createdAt: string;
+  profileImage?: string;
 }
 
 export interface Player {

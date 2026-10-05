@@ -1,4 +1,5 @@
 import { User, Match, League, AdminLog } from './types';
+import { saveMatchToFirebase, deleteMatchFromFirebase, saveUserToFirebase, deleteUserFromFirebase, saveLeagueToFirebase, deleteLeagueFromFirebase } from './firebase';
 
 const ADMIN_EMAIL = 'rayhanakhandrayhan337@gmail.com';
 const ADMIN_PASSWORD = '1210Rayhan#';
@@ -10,6 +11,11 @@ export function getUsers(): User[] {
 
 export function saveUsers(users: User[]) {
   localStorage.setItem('cric_users', JSON.stringify(users));
+  
+  // Sync each user with Firebase
+  users.forEach(user => {
+    saveUserToFirebase(user).catch(err => console.warn('Firebase sync failed:', err));
+  });
 }
 
 export function getCurrentUser(): User | null {
@@ -82,11 +88,17 @@ export function saveMatch(match: Match) {
   if (idx >= 0) matches[idx] = match;
   else matches.push(match);
   localStorage.setItem('cric_matches', JSON.stringify(matches));
+  
+  // Sync with Firebase
+  saveMatchToFirebase(match).catch(err => console.warn('Firebase sync failed:', err));
 }
 
 export function deleteMatch(matchId: string) {
   const matches = getMatches().filter(m => m.id !== matchId);
   localStorage.setItem('cric_matches', JSON.stringify(matches));
+  
+  // Sync with Firebase
+  deleteMatchFromFirebase(matchId).catch(err => console.warn('Firebase sync failed:', err));
 }
 
 export function getLeagues(userId?: string): League[] {
@@ -102,11 +114,17 @@ export function saveLeague(league: League) {
   if (idx >= 0) leagues[idx] = league;
   else leagues.push(league);
   localStorage.setItem('cric_leagues', JSON.stringify(leagues));
+  
+  // Sync with Firebase
+  saveLeagueToFirebase(league).catch(err => console.warn('Firebase sync failed:', err));
 }
 
 export function deleteLeague(leagueId: string) {
   const leagues = getLeagues().filter(l => l.id !== leagueId);
   localStorage.setItem('cric_leagues', JSON.stringify(leagues));
+  
+  // Sync with Firebase
+  deleteLeagueFromFirebase(leagueId).catch(err => console.warn('Firebase sync failed:', err));
 }
 
 export function getAdminLogs(): AdminLog[] {
@@ -143,4 +161,43 @@ export function generatePlayerName(): string {
   const firstNames = ['Virat', 'Rohit', 'Jasprit', 'Rashid', 'Babar', 'Kane', 'Joe', 'Steve', 'David', 'Ben', 'Shakib', 'Trent', 'Pat', 'Mitchell', 'Kagiso', 'Faf', 'Quinton', 'Aiden', 'Glenn', 'Tim'];
   const lastNames = ['Kohli', 'Sharma', 'Bumrah', 'Khan', 'Azam', 'Williamson', 'Root', 'Smith', 'Warner', 'Stokes', 'Hasan', 'Boult', 'Cummins', 'Starc', 'Rabada', 'du Plessis', 'de Kock', 'Markram', 'Maxwell', 'Southee'];
   return `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`;
+}
+
+// Profile Management Functions
+export function updateUserProfile(userId: string, updates: Partial<User>) {
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx >= 0) {
+    users[idx] = { ...users[idx], ...updates };
+    saveUsers(users);
+    
+    // Update current user if it's the logged-in user
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser({ ...currentUser, ...updates });
+    }
+  }
+}
+
+export function changePassword(email: string, newPassword: string) {
+  localStorage.setItem(`cric_pass_${email}`, newPassword);
+}
+
+export function getUserPassword(email: string): string | null {
+  return localStorage.getItem(`cric_pass_${email}`);
+}
+
+export function setUserProfileImage(userId: string, imageUrl: string) {
+  const users = getUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx >= 0) {
+    users[idx] = { ...users[idx], profileImage: imageUrl };
+    saveUsers(users);
+    
+    // Update current user if it's the logged-in user
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser({ ...currentUser, profileImage: imageUrl });
+    }
+  }
 }

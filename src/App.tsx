@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Match, League, Player, BallEvent, InningsData, BatsmanStats, BowlerStats, LeagueTeam } from './types';
-import { getCurrentUser, setCurrentUser, login, signup, getMatches, saveMatch, deleteMatch, getLeagues, saveLeague, deleteLeague, getAdminLogs, addAdminLog, generateTeamName, generatePlayerName, getUsers, saveUsers } from './store';
+import { getCurrentUser, setCurrentUser, login, signup, getMatches, saveMatch, deleteMatch, getLeagues, saveLeague, deleteLeague, getAdminLogs, addAdminLog, generateTeamName, generatePlayerName, getUsers, saveUsers, updateUserProfile, changePassword, getUserPassword, setUserProfileImage } from './store';
+import { firebaseUpdatePassword, firebaseUpdateProfile } from './firebase';
 
 // ============= MAIN APP =============
 export default function App() {
@@ -17,8 +18,9 @@ export default function App() {
   if (screen === 'splash') return <SplashScreen />;
   if (!user) return <AuthScreen onLogin={(u) => { setUser(u); setScreen('home'); }} />;
   if (user.isAdmin && screen === 'admin') return <AdminPanel user={user} onBack={() => setScreen('home')} />;
+  if (screen === 'profile') return <ProfileScreen user={user} onUpdate={(u) => { setUser(u); setCurrentUser(u); }} onBack={() => setScreen('home')} onLogout={() => { setCurrentUser(null); setUser(null); setScreen('auth'); }} />;
 
-  return <HomeScreen user={user} onLogout={() => { setCurrentUser(null); setUser(null); setScreen('auth'); }} onAdmin={() => setScreen('admin')} />;
+  return <HomeScreen user={user} onLogout={() => { setCurrentUser(null); setUser(null); setScreen('auth'); }} onAdmin={() => setScreen('admin')} onProfile={() => setScreen('profile')} />;
 }
 
 // ============= SPLASH SCREEN =============
@@ -97,8 +99,132 @@ function AuthScreen({ onLogin }: { onLogin: (user: User) => void }) {
   );
 }
 
+// ============= PROFILE SCREEN =============
+function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpdate: (u: User) => void; onBack: () => void; onLogout: () => void }) {
+  const [name, setName] = useState(user.name);
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const imageUrl = reader.result as string;
+        setUserProfileImage(user.id, imageUrl);
+        onUpdate({ ...user, profileImage: imageUrl });
+        setMessage('Profile image updated!');
+        setTimeout(() => setMessage(''), 3000);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdateName = () => {
+    if (!name.trim()) { setError('Name cannot be empty'); return; }
+    updateUserProfile(user.id, { name });
+    onUpdate({ ...user, name });
+    setMessage('Name updated!');
+    setError('');
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  const handleChangePassword = () => {
+    setError('');
+    setMessage('');
+    const storedPass = getUserPassword(user.email);
+    if (storedPass && currentPass !== storedPass) {
+      setError('Current password is incorrect');
+      return;
+    }
+    if (newPass.length < 6) {
+      setError('New password must be at least 6 characters');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setError('Passwords do not match');
+      return;
+    }
+    changePassword(user.email, newPass);
+    // Try Firebase update too
+    firebaseUpdatePassword(newPass).catch(() => {});
+    setCurrentPass('');
+    setNewPass('');
+    setConfirmPass('');
+    setMessage('Password changed successfully!');
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="bg-gradient-to-r from-green-800 to-emerald-900 px-4 py-4 flex items-center gap-3">
+        <button onClick={onBack} className="text-white text-xl">←</button>
+        <h1 className="text-xl font-bold">My Profile</h1>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {message && <div className="bg-green-600/20 border border-green-500/50 text-green-200 px-4 py-2 rounded-lg text-sm">{message}</div>}
+        {error && <div className="bg-red-600/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg text-sm">{error}</div>}
+
+        {/* Profile Image */}
+        <div className="bg-gray-800 rounded-xl p-4 text-center">
+          <div className="relative inline-block">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-500 to-emerald-700 flex items-center justify-center text-4xl overflow-hidden mx-auto">
+              {user.profileImage ? (
+                <img src={user.profileImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span>{user.name.charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-sm hover:bg-blue-700">
+              📷
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+          </div>
+          <p className="mt-3 font-bold text-lg">{user.name}</p>
+          <p className="text-gray-400 text-sm">{user.email}</p>
+          {user.isAdmin && <span className="bg-yellow-600 text-xs px-2 py-0.5 rounded mt-1 inline-block">ADMIN</span>}
+        </div>
+
+        {/* Update Name */}
+        <div className="bg-gray-800 rounded-xl p-4">
+          <h3 className="font-bold mb-3">Update Name</h3>
+          <div className="flex gap-2">
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
+              className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none" />
+            <button onClick={handleUpdateName} className="bg-green-600 px-4 py-2 rounded-lg font-bold hover:bg-green-700">Save</button>
+          </div>
+        </div>
+
+        {/* Change Password */}
+        <div className="bg-gray-800 rounded-xl p-4">
+          <h3 className="font-bold mb-3">Change Password</h3>
+          <div className="space-y-3">
+            <input type="password" placeholder="Current Password" value={currentPass} onChange={e => setCurrentPass(e.target.value)}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none" />
+            <input type="password" placeholder="New Password (min 6 chars)" value={newPass} onChange={e => setNewPass(e.target.value)}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none" />
+            <input type="password" placeholder="Confirm New Password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none" />
+            <button onClick={handleChangePassword} className="w-full bg-blue-600 py-2 rounded-lg font-bold hover:bg-blue-700">Change Password</button>
+          </div>
+        </div>
+
+        {/* Logout */}
+        <button onClick={onLogout} className="w-full bg-red-600 py-3 rounded-xl font-bold hover:bg-red-700 transition-all">
+          🚪 Logout
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ============= HOME SCREEN =============
-function HomeScreen({ user, onLogout, onAdmin }: { user: User; onLogout: () => void; onAdmin: () => void }) {
+function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogout: () => void; onAdmin: () => void; onProfile: () => void }) {
   const [tab, setTab] = useState(0);
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
   const [showCreateMatch, setShowCreateMatch] = useState(false);
@@ -116,8 +242,7 @@ function HomeScreen({ user, onLogout, onAdmin }: { user: User; onLogout: () => v
   if (activeMatch && activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
     return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
   }
-  
-  // If match is live but has no innings data, show summary instead
+
   if (activeMatch && activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
     return <MatchSummaryScreen match={activeMatch} onBack={() => setActiveMatch(null)} />;
   }
@@ -138,15 +263,23 @@ function HomeScreen({ user, onLogout, onAdmin }: { user: User; onLogout: () => v
     <div className="min-h-screen bg-gray-900 text-white pb-20">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-800 to-emerald-900 px-4 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">CricScore Pro</h1>
-          <p className="text-green-300 text-sm">Welcome, {user.name}</p>
+        <div className="flex items-center gap-3">
+          <div onClick={onProfile} className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-700 flex items-center justify-center text-lg font-bold cursor-pointer overflow-hidden">
+            {user.profileImage ? (
+              <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span>{user.name.charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+          <div>
+            <h1 className="text-lg font-bold">CricScore Pro</h1>
+            <p className="text-green-300 text-xs">Hi, {user.name}</p>
+          </div>
         </div>
         <div className="flex gap-2">
           {user.isAdmin && (
             <button onClick={onAdmin} className="bg-yellow-600 px-3 py-1 rounded-lg text-xs font-bold">Admin</button>
           )}
-          <button onClick={onLogout} className="bg-red-600/80 px-3 py-1 rounded-lg text-xs">Logout</button>
         </div>
       </div>
 
@@ -178,14 +311,11 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
   const liveMatches = matches.filter(m => m.status === 'live');
   const wins = completedMatches.filter(m => {
     if (!m.result) return false;
-    // Check if user's team name appears in the winning part of result
-    const team1Name = m.team1.name;
-    const team2Name = m.team2.name;
-    // Result format: "TeamName won by X runs/wickets"
-    return m.result.includes(team1Name + ' won') || m.result.includes(team2Name + ' won');
+    return m.result.includes(m.team1.name + ' won') || m.result.includes(m.team2.name + ' won');
   }).length;
 
   const recentMatches = [...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
+  const [, setRefresh] = useState(0);
 
   return (
     <div className="space-y-4">
@@ -219,7 +349,7 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
         ) : (
           <div className="space-y-2">
             {recentMatches.map(m => (
-              <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => { if (confirm('Delete this match?')) { deleteMatch(m.id); window.location.reload(); } }} />
+              <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => { if (confirm('Delete this match?')) { deleteMatch(m.id); setRefresh(r => r + 1); } }} />
             ))}
           </div>
         )}
@@ -257,11 +387,9 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
           </div>
           {match.result && <p className="text-yellow-400 text-xs mt-2">{match.result}</p>}
         </div>
-        {match.status === 'completed' && (
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-red-400 hover:text-red-300 p-1 ml-2">
-            🗑️
-          </button>
-        )}
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-red-400 hover:text-red-300 p-1 ml-2" title="Delete match">
+          🗑️
+        </button>
       </div>
     </div>
   );
@@ -270,17 +398,37 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
 // ============= LIVE TAB =============
 function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) => void }) {
   const liveMatches = getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0);
+  const [broadcastMatch, setBroadcastMatch] = useState<Match | null>(null);
 
   const handleShare = (match: Match) => {
     const currentInnings = match.innings?.[match.currentInnings];
-    const text = `🏏 LIVE: ${match.team1.name} vs ${match.team2.name} at ${match.venue}\nScore: ${currentInnings?.runs || 0}/${currentInnings?.wickets || 0}`;
+    const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
+    const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
+    const currentBattingTeam = currentInnings?.battingTeamId === match.team1.id ? match.team1 : match.team2;
+    
+    let text = `🏏 LIVE MATCH\n\n`;
+    text += `${match.team1.name} vs ${match.team2.name}\n`;
+    text += `📍 ${match.venue}\n\n`;
+    if (currentInnings) {
+      text += `📊 Score: ${currentInnings.runs}/${currentInnings.wickets} (${currentInnings.overs}.${currentInnings.balls} ov)\n`;
+      const striker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+      const bowler = currentInnings.bowlersStats?.[currentInnings.currentBowler];
+      if (striker) text += `🏏 ${striker.playerName}: ${striker.runs}(${striker.balls})\n`;
+      if (bowler) text += `⚾ ${bowler.playerName}: ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
+    }
+    text += `\nvia CricScore Pro`;
+
     if (navigator.share) {
-      navigator.share({ title: 'CricScore Pro - Live Match', text });
+      navigator.share({ title: 'CricScore Pro - Live Match', text }).catch(() => {});
     } else {
       navigator.clipboard.writeText(text);
-      alert('Match details copied to clipboard! Share on Facebook or any social media.');
+      alert('Live score card copied! Share on Facebook, WhatsApp, or any social media.');
     }
   };
+
+  if (broadcastMatch) {
+    return <BroadcastScreen match={broadcastMatch} onBack={() => setBroadcastMatch(null)} />;
+  }
 
   return (
     <div className="space-y-4">
@@ -298,15 +446,14 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
             <div key={m.id} className="bg-gray-800 rounded-xl p-4 border border-red-500/30">
               <div className="flex items-center justify-between mb-3">
                 <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">● LIVE</span>
-                <button onClick={() => handleShare(m)} className="bg-blue-600 px-3 py-1 rounded text-xs hover:bg-blue-700">
-                  📤 Share
-                </button>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <div>
-                  <p className="font-bold">{m.team1.name} vs {m.team2.name}</p>
-                  <p className="text-gray-400 text-xs">{m.venue}</p>
+                <div className="flex gap-1">
+                  <button onClick={() => handleShare(m)} className="bg-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-700">📤</button>
+                  <button onClick={() => setBroadcastMatch(m)} className="bg-purple-600 px-2 py-1 rounded text-xs hover:bg-purple-700">📹</button>
                 </div>
+              </div>
+              <div className="mb-2">
+                <p className="font-bold">{m.team1.name} vs {m.team2.name}</p>
+                <p className="text-gray-400 text-xs">{m.venue}</p>
               </div>
               <button onClick={() => onOpenMatch(m)} className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 transition-all">
                 ▶ Continue Scoring
@@ -315,6 +462,125 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============= BROADCAST SCREEN =============
+function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [streaming, setStreaming] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const innings = match.innings?.[match.currentInnings];
+  const battingTeam = innings?.battingTeamId === match.team1.id ? match.team1 : match.team2;
+  const striker = innings?.batsmenStats?.[innings?.currentBatsmen?.[0]];
+  const bowler = innings?.bowlersStats?.[innings?.currentBowler];
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' }, 
+        audio: true 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setStream(mediaStream);
+      setStreaming(true);
+    } catch (err) {
+      alert('Camera access denied. Please allow camera access to broadcast.');
+      console.error('Camera error:', err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setStreaming(false);
+  };
+
+  const handleShare = () => {
+    let text = `🏏 LIVE BROADCAST\n\n`;
+    text += `${match.team1.name} vs ${match.team2.name}\n`;
+    text += `📍 ${match.venue}\n\n`;
+    if (innings) {
+      text += `📊 ${battingTeam.name}: ${innings.runs}/${innings.wickets} (${innings.overs}.${innings.balls} ov)\n`;
+      if (striker) text += `🏏 Striker: ${striker.playerName} - ${striker.runs}(${striker.balls})\n`;
+      if (bowler) text += `⚾ Bowler: ${bowler.playerName} - ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
+    }
+    text += `\n🔴 Watch Live on CricScore Pro!`;
+
+    if (navigator.share) {
+      navigator.share({ title: 'CricScore Pro - Live Broadcast', text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text);
+      alert('Broadcast link copied! Share on Facebook, WhatsApp, or social media.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-black text-white relative">
+      {/* Camera Feed */}
+      <div className="relative w-full h-screen">
+        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+        
+        {/* Score Overlay */}
+        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="bg-red-600 px-2 py-0.5 rounded text-xs font-bold animate-pulse">● LIVE</span>
+              <span className="text-sm font-bold">{match.team1.name} vs {match.team2.name}</span>
+            </div>
+            <button onClick={onBack} className="bg-gray-800/80 px-3 py-1 rounded text-sm">✕ Close</button>
+          </div>
+        </div>
+
+        {/* Score Card Overlay */}
+        {innings && (
+          <div className="absolute bottom-20 left-4 right-4">
+            <div className="bg-black/70 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-bold">{battingTeam.name}</span>
+                <span className="text-2xl font-bold text-green-400">{innings.runs}/{innings.wickets}</span>
+              </div>
+              <div className="text-xs text-gray-300">Overs: {innings.overs}.{innings.balls}/{match.totalOvers}</div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="bg-green-900/40 rounded p-2">
+                  <p className="text-xs text-green-300">🏏 Striker</p>
+                  <p className="font-bold text-sm truncate">{striker?.playerName || '-'}</p>
+                  <p className="text-green-400">{striker?.runs || 0} ({striker?.balls || 0})</p>
+                </div>
+                <div className="bg-purple-900/40 rounded p-2">
+                  <p className="text-xs text-purple-300">⚾ Bowler</p>
+                  <p className="font-bold text-sm truncate">{bowler?.playerName || '-'}</p>
+                  <p className="text-purple-400">{bowler?.overs || 0}.{bowler?.balls || 0}-{bowler?.runs || 0}-{bowler?.wickets || 0}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
+          <button onClick={handleShare} className="bg-blue-600 px-4 py-2 rounded-full font-bold text-sm hover:bg-blue-700">
+            📤 Share
+          </button>
+          <button onClick={streaming ? stopCamera : startCamera} className={`${streaming ? 'bg-red-600' : 'bg-green-600'} px-4 py-2 rounded-full font-bold text-sm`}>
+            {streaming ? '⏹ Stop' : '▶ Start'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -392,7 +658,6 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch }: { league: League; on
         </table>
       </div>
 
-      {/* League Matches */}
       {leagueMatches.length > 0 && (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-gray-400 font-semibold">Matches:</p>
@@ -413,6 +678,7 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch }: { league: League; on
 // ============= CUSTOM TAB =============
 function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateMatch: () => void; onOpenMatch: (m: Match) => void }) {
   const matches = getMatches(user.id).filter(m => !m.leagueId);
+  const [, setRefresh] = useState(0);
 
   return (
     <div className="space-y-4">
@@ -427,12 +693,11 @@ function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateM
         <div className="text-center py-12">
           <div className="text-5xl mb-4">🏏</div>
           <p className="text-gray-400">No custom matches yet</p>
-          <p className="text-gray-500 text-sm mt-2">Create your first match!</p>
         </div>
       ) : (
         <div className="space-y-2">
           {[...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(m => (
-            <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => { if (confirm('Delete this match?')) { deleteMatch(m.id); window.location.reload(); } }} />
+            <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => { if (confirm('Delete this match?')) { deleteMatch(m.id); setRefresh(r => r + 1); } }} />
           ))}
         </div>
       )}
@@ -452,7 +717,6 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat');
   const [step, setStep] = useState(1);
 
-  // If league match, pre-select teams
   useEffect(() => {
     if (league) {
       setTeam1Name(league.teams[0]?.name || '');
@@ -478,6 +742,11 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
     players[idx] = { ...players[idx], name };
     if (teamNum === 1) setTeam1Players(players);
     else setTeam2Players(players);
+  };
+
+  const randomizeOvers = () => {
+    const options = [3, 5, 7, 10, 14, 20];
+    setTotalOvers(options[Math.floor(Math.random() * options.length)]);
   };
 
   const handleStart = () => {
@@ -544,9 +813,8 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Step indicators */}
         <div className="flex gap-2 mb-4">
-          {[1, 2, 3].map(s => (
+          {[1, 2, 3, 4].map(s => (
             <div key={s} className={`flex-1 h-2 rounded-full ${step >= s ? 'bg-green-500' : 'bg-gray-700'}`} />
           ))}
         </div>
@@ -561,10 +829,13 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
             <input type="text" placeholder="Venue" value={venue} onChange={e => setVenue(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Total Overs</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm text-gray-400">Total Overs</label>
+                <button onClick={randomizeOvers} className="text-xs bg-purple-600 px-3 py-1 rounded hover:bg-purple-700">🎲 Random</button>
+              </div>
               <div className="flex gap-2">
                 {[3, 5, 10, 15, 20].map(o => (
-                  <button key={o} onClick={() => setTotalOvers(o)} className={`px-4 py-2 rounded-lg font-bold ${totalOvers === o ? 'bg-green-600' : 'bg-gray-700'}`}>{o}</button>
+                  <button key={o} onClick={() => setTotalOvers(o)} className={`flex-1 py-2 rounded-lg font-bold ${totalOvers === o ? 'bg-green-600' : 'bg-gray-700'}`}>{o}</button>
                 ))}
               </div>
             </div>
@@ -644,14 +915,12 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: () => void; onUpdate: (m: Match) => void }) {
   const innings = match.innings[match.currentInnings];
   
-  // Safety check - if innings doesn't exist, show error
   if (!innings) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <div className="text-5xl">⚠️</div>
           <h2 className="text-xl font-bold">Match Data Error</h2>
-          <p className="text-gray-400">Unable to load match innings data.</p>
           <button onClick={onBack} className="bg-green-600 px-6 py-2 rounded-lg font-bold">Go Back</button>
         </div>
       </div>
@@ -666,6 +935,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
+  const [showMatchComplete, setShowMatchComplete] = useState(false);
 
   const firstInnings = match.innings[0];
   const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
@@ -697,7 +967,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       timestamp: new Date().toISOString()
     };
 
-    // Update innings
     inn.runs += runs;
     inn.ballEvents.push(ballEvent);
 
@@ -712,7 +981,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     if (isWide) inn.extras.wides += runs;
     if (isNoBall) inn.extras.noBalls += runs;
 
-    // Update batsman stats
     const batsmanStat = inn.batsmenStats?.[inn.currentBatsmen[0]];
     if (batsmanStat && !isWide) {
       batsmanStat.runs += runs;
@@ -721,7 +989,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (runs === 6) batsmanStat.sixes += 1;
     }
 
-    // Update bowler stats
     const bowlerStat = inn.bowlersStats?.[inn.currentBowler];
     if (bowlerStat) {
       bowlerStat.runs += runs;
@@ -735,7 +1002,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (isWide || isNoBall) bowlerStat.extras += runs;
     }
 
-    // Handle wicket
     if (isWicket && !isWide) {
       if (batsmanStat) {
         batsmanStat.isOut = true;
@@ -745,7 +1011,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.wickets += 1;
 
       if (inn.wickets >= 10) {
-        // Innings over - all out
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
       } else {
@@ -753,15 +1018,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
     }
 
-    // Rotate strike on odd runs
     if (!isWide && (runs === 1 || runs === 3)) {
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
     }
 
-    // End of over - rotate strike
+    // End of over - rotate strike and select new bowler
     if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-      // Check if overs completed
       if (inn.overs >= match.totalOvers) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
@@ -770,7 +1033,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
     }
 
-    // Check if target achieved
     if (target && inn.runs >= target) {
       inn.isCompleted = true;
       handleInningsEnd(newMatch);
@@ -781,16 +1043,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const handleInningsEnd = (newMatch: Match) => {
     if (newMatch.currentInnings === 0) {
-      // Start 2nd innings
       setInningBreak(true);
     } else {
-      // Match complete
       const inn1 = newMatch.innings[0];
       const inn2 = newMatch.innings[1];
       let result = '';
       
       if (!inn1 || !inn2) {
-        result = 'Match completed (incomplete data)';
+        result = 'Match completed';
       } else if (inn2.runs >= inn1.runs + 1) {
         const wicketsLeft = 10 - inn2.wickets;
         result = `${getTeamName(inn2.battingTeamId)} won by ${wicketsLeft} wickets`;
@@ -803,10 +1063,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       newMatch.status = 'completed';
       newMatch.result = result;
       
-      // Update league standings if applicable
       if (newMatch.leagueId) {
         updateLeagueStandings(newMatch);
       }
+      
+      setShowMatchComplete(true);
     }
   };
 
@@ -852,6 +1113,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const selectNewBatsman = (playerId: string) => {
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
+    if (!inn) return;
     inn.currentBatsmen[0] = playerId;
     setShowNewBatsman(false);
     onUpdate(newMatch);
@@ -860,6 +1122,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const selectBowler = (playerId: string) => {
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
+    if (!inn) return;
     inn.currentBowler = playerId;
     setShowBowlerSelect(false);
     onUpdate(newMatch);
@@ -873,14 +1136,10 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     const lastEvent = inn.ballEvents.pop()!;
     if (!lastEvent) return;
     
-    // Reverse the ball event
     inn.runs -= (lastEvent.runs || 0);
     if (!lastEvent.isWide && !lastEvent.isNoBall) {
       inn.balls -= 1;
-      if (inn.balls < 0) {
-        inn.overs -= 1;
-        inn.balls = 5;
-      }
+      if (inn.balls < 0) { inn.overs -= 1; inn.balls = 5; }
     }
     if (lastEvent.isWide) inn.extras.wides -= (lastEvent.runs || 0);
     if (lastEvent.isNoBall) inn.extras.noBalls -= (lastEvent.runs || 0);
@@ -898,10 +1157,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       bowlerStat.runs -= (lastEvent.runs || 0);
       if (!lastEvent.isWide && !lastEvent.isNoBall) {
         bowlerStat.balls -= 1;
-        if (bowlerStat.balls < 0) {
-          bowlerStat.overs -= 1;
-          bowlerStat.balls = 5;
-        }
+        if (bowlerStat.balls < 0) { bowlerStat.overs -= 1; bowlerStat.balls = 5; }
       }
       if (lastEvent.isWide || lastEvent.isNoBall) bowlerStat.extras -= (lastEvent.runs || 0);
     }
@@ -916,16 +1172,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     onUpdate(newMatch);
   };
 
+  // Match Complete Screen
+  if (showMatchComplete || match.status === 'completed') {
+    return <MatchSummaryScreen match={match} onBack={onBack} />;
+  }
+
   // Innings break screen
   if (inningBreak) {
-    const firstInnings = match.innings[0];
-    if (!firstInnings) {
+    const firstInn = match.innings[0];
+    if (!firstInn) {
       return (
         <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-          <div className="text-center space-y-4">
-            <p className="text-gray-400">No innings data available</p>
-            <button onClick={onBack} className="bg-green-600 px-6 py-2 rounded-lg font-bold">Go Back</button>
-          </div>
+          <button onClick={onBack} className="bg-green-600 px-6 py-2 rounded-lg font-bold">Go Back</button>
         </div>
       );
     }
@@ -935,23 +1193,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           <div className="text-5xl">🏏</div>
           <h2 className="text-2xl font-bold">Innings Break</h2>
           <div className="bg-gray-800 rounded-xl p-4">
-            <p className="text-lg">{getTeamName(firstInnings.battingTeamId)}</p>
-            <p className="text-4xl font-bold text-green-400">{firstInnings.runs}/{firstInnings.wickets}</p>
-            <p className="text-gray-400">({firstInnings.overs}.{firstInnings.balls} overs)</p>
+            <p className="text-lg">{getTeamName(firstInn.battingTeamId)}</p>
+            <p className="text-4xl font-bold text-green-400">{firstInn.runs}/{firstInn.wickets}</p>
+            <p className="text-gray-400">({firstInn.overs}.{firstInn.balls} overs)</p>
           </div>
-          <p className="text-yellow-400 text-lg font-bold">Target: {firstInnings.runs + 1}</p>
-          <p className="text-gray-300">{getTeamName(firstInnings.bowlingTeamId)} needs {firstInnings.runs + 1} runs to win</p>
+          <p className="text-yellow-400 text-lg font-bold">Target: {firstInn.runs + 1}</p>
+          <p className="text-gray-300">{getTeamName(firstInn.bowlingTeamId)} needs {firstInn.runs + 1} runs to win</p>
           <button onClick={startSecondInnings} className="bg-green-600 px-8 py-3 rounded-lg font-bold text-lg hover:bg-green-700">
             Start 2nd Innings →
           </button>
         </div>
       </div>
     );
-  }
-
-  // Match completed
-  if (match.status === 'completed') {
-    return <MatchSummaryScreen match={match} onBack={onBack} />;
   }
 
   return (
@@ -980,7 +1233,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           <div className="flex justify-center gap-4 mt-2 text-sm">
             <span className="text-blue-300">CRR: {runRate}</span>
             {reqRunRate && <span className="text-yellow-300">RRR: {reqRunRate}</span>}
-            {remaining && <span className="text-red-300">Need: {remaining} off {ballsRemaining}</span>}
+            {remaining !== null && <span className="text-red-300">Need: {remaining} off {ballsRemaining}</span>}
           </div>
         </div>
       </div>
@@ -992,7 +1245,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
             <span className="text-green-400 text-xs">🏏</span>
             <span className="text-xs text-green-300 font-bold">STRIKER</span>
           </div>
-          <p className="font-bold text-sm truncate">{striker?.playerName || '...'}</p>
+          <p className="font-bold text-sm truncate">{striker?.playerName || 'Waiting...'}</p>
           <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
           <div className="flex gap-2 text-xs text-gray-400 mt-1">
             <span>4s: {striker?.fours || 0}</span>
@@ -1004,7 +1257,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
             <span className="text-blue-400 text-xs">🏏</span>
             <span className="text-xs text-blue-300">NON-STRIKER</span>
           </div>
-          <p className="font-bold text-sm truncate">{nonStriker?.playerName || '...'}</p>
+          <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'Waiting...'}</p>
           <p className="text-2xl font-bold text-blue-400">{nonStriker?.runs || 0} <span className="text-sm text-gray-400">({nonStriker?.balls || 0})</span></p>
           <div className="flex gap-2 text-xs text-gray-400 mt-1">
             <span>4s: {nonStriker?.fours || 0}</span>
@@ -1019,7 +1272,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-purple-300">⚾ BOWLER</p>
-              <p className="font-bold text-sm">{currentBowler?.playerName || '...'}</p>
+              <p className="font-bold text-sm">{currentBowler?.playerName || 'Select Bowler'}</p>
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-purple-400">{currentBowler?.overs || 0}.{currentBowler?.balls || 0}-{currentBowler?.maidens || 0}-{currentBowler?.runs || 0}-{currentBowler?.wickets || 0}</p>
@@ -1087,7 +1340,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       {showBowlerSelect && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-80 overflow-y-auto">
-            <h3 className="font-bold text-lg mb-3">Select Bowler</h3>
+            <h3 className="font-bold text-lg mb-3">⚾ Select Bowler for Over {innings.overs + 1}</h3>
             <div className="space-y-2">
               {bowlingTeam.players.filter(p => p.id !== innings.currentBowler).map(p => (
                 <button key={p.id} onClick={() => selectBowler(p.id)}
@@ -1105,9 +1358,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       {showNewBatsman && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-80 overflow-y-auto">
-            <h3 className="font-bold text-lg mb-3">Select New Batsman</h3>
+            <h3 className="font-bold text-lg mb-3">🏏 Select New Batsman</h3>
             <div className="space-y-2">
-              {battingTeam.players.filter(p => !innings.batsmenStats[p.id]?.isOut && !innings.currentBatsmen.includes(p.id)).map(p => (
+              {battingTeam.players.filter(p => !innings.batsmenStats?.[p.id]?.isOut && !innings.currentBatsmen.includes(p.id)).map(p => (
                 <button key={p.id} onClick={() => selectNewBatsman(p.id)}
                   className="w-full bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg text-left flex justify-between items-center">
                   <span>{p.name}</span>
@@ -1125,7 +1378,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 // ============= MATCH SUMMARY SCREEN =============
 function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => void }) {
   const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
-  const getTeam = (teamId: string) => teamId === match.team1.id ? match.team1 : match.team2;
 
   const handleShare = () => {
     const inn1 = match.innings?.[0];
@@ -1136,9 +1388,10 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
     if (inn1) text += `${getTeamName(inn1.battingTeamId)}: ${inn1.runs}/${inn1.wickets} (${inn1.overs}.${inn1.balls})\n`;
     if (inn2) text += `${getTeamName(inn2.battingTeamId)}: ${inn2.runs}/${inn2.wickets} (${inn2.overs}.${inn2.balls})\n`;
     if (match.result) text += `\nResult: ${match.result}`;
+    text += `\n\nvia CricScore Pro`;
 
     if (navigator.share) {
-      navigator.share({ title: 'CricScore Pro - Match Summary', text });
+      navigator.share({ title: 'CricScore Pro - Match Summary', text }).catch(() => {});
     } else {
       navigator.clipboard.writeText(text);
       alert('Match summary copied! Share on Facebook or social media.');
@@ -1154,14 +1407,12 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Result */}
         {match.result && (
           <div className="bg-gradient-to-r from-yellow-900/50 to-yellow-800/30 rounded-xl p-4 border border-yellow-700/30 text-center">
             <p className="text-yellow-400 font-bold text-lg">{match.result}</p>
           </div>
         )}
 
-        {/* Score Overview */}
         <div className="bg-gray-800 rounded-xl p-4">
           {match.innings && match.innings.map((inn, idx) => (
             <div key={idx} className={`${idx > 0 ? 'mt-3 pt-3 border-t border-gray-700' : ''}`}>
@@ -1173,9 +1424,8 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
           ))}
         </div>
 
-        {/* Batting Scorecards */}
         {match.innings && match.innings.map((inn, idx) => (
-          <div key={idx} className="bg-gray-800 rounded-xl p-4">
+          <div key={`bat-${idx}`} className="bg-gray-800 rounded-xl p-4">
             <h3 className="font-bold text-sm text-green-400 mb-3">🏏 Batting - {inn ? getTeamName(inn.battingTeamId) : 'Unknown'}</h3>
             <table className="w-full text-sm">
               <thead>
@@ -1209,9 +1459,8 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
           </div>
         ))}
 
-        {/* Bowling Scorecards */}
         {match.innings && match.innings.map((inn, idx) => (
-          <div key={idx} className="bg-gray-800 rounded-xl p-4">
+          <div key={`bowl-${idx}`} className="bg-gray-800 rounded-xl p-4">
             <h3 className="font-bold text-sm text-purple-400 mb-3">⚾ Bowling - {inn ? getTeamName(inn.bowlingTeamId) : 'Unknown'}</h3>
             <table className="w-full text-sm">
               <thead>
@@ -1346,26 +1595,42 @@ function CreateLeagueScreen({ user, onBack }: { user: User; onBack: () => void }
 // ============= ADMIN PANEL =============
 function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
   const [tab, setTab] = useState<'clients' | 'logs'>('clients');
-  const users = getUsers();
+  const [users, setUsers] = useState(getUsers());
   const logs = getAdminLogs();
   const allMatches = getMatches();
 
   const handleEditUser = (userId: string) => {
-    const newName = prompt('Enter new name:');
-    if (newName) {
-      const updatedUsers = users.map(u => u.id === userId ? { ...u, name: newName } : u);
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    const newName = prompt('Enter new name:', targetUser.name);
+    if (newName && newName.trim()) {
+      const updatedUsers = users.map(u => u.id === userId ? { ...u, name: newName.trim() } : u);
+      setUsers(updatedUsers);
       saveUsers(updatedUsers);
-      addAdminLog('Edit User', `Updated user ${userId} name to ${newName}`);
-      window.location.reload();
+      addAdminLog('Edit User', `Updated user "${targetUser.name}" name to "${newName.trim()}"`);
+    }
+  };
+
+  const handleEditEmail = (userId: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    const newEmail = prompt('Enter new email:', targetUser.email);
+    if (newEmail && newEmail.trim()) {
+      const updatedUsers = users.map(u => u.id === userId ? { ...u, email: newEmail.trim() } : u);
+      setUsers(updatedUsers);
+      saveUsers(updatedUsers);
+      addAdminLog('Edit User Email', `Updated user "${targetUser.name}" email to "${newEmail.trim()}"`);
     }
   };
 
   const handleDeleteUser = (userId: string) => {
-    if (confirm('Delete this user?')) {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    if (confirm(`Delete user "${targetUser.name}" (${targetUser.email})?`)) {
       const updatedUsers = users.filter(u => u.id !== userId);
+      setUsers(updatedUsers);
       saveUsers(updatedUsers);
-      addAdminLog('Delete User', `Deleted user ${userId}`);
-      window.location.reload();
+      addAdminLog('Delete User', `Deleted user "${targetUser.name}" (${targetUser.email})`);
     }
   };
 
@@ -1416,15 +1681,18 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
 
             <h3 className="font-bold">Registered Users</h3>
             {users.map(u => (
-              <div key={u.id} className="bg-gray-800 rounded-lg p-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{u.name}</p>
-                  <p className="text-xs text-gray-400">{u.email}</p>
-                  <p className="text-xs text-gray-500">Joined: {new Date(u.createdAt).toLocaleDateString()}</p>
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => handleEditUser(u.id)} className="bg-blue-600 px-2 py-1 rounded text-xs">Edit</button>
-                  <button onClick={() => handleDeleteUser(u.id)} className="bg-red-600 px-2 py-1 rounded text-xs">Del</button>
+              <div key={u.id} className="bg-gray-800 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{u.name}</p>
+                    <p className="text-xs text-gray-400">{u.email}</p>
+                    <p className="text-xs text-gray-500">Joined: {new Date(u.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => handleEditUser(u.id)} className="bg-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-700">Name</button>
+                    <button onClick={() => handleEditEmail(u.id)} className="bg-indigo-600 px-2 py-1 rounded text-xs hover:bg-indigo-700">Email</button>
+                    <button onClick={() => handleDeleteUser(u.id)} className="bg-red-600 px-2 py-1 rounded text-xs hover:bg-red-700">Del</button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1436,7 +1704,7 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
                   <p className="text-sm font-medium">{m.team1.name} vs {m.team2.name}</p>
                   <p className="text-xs text-gray-400">{m.status} • {m.venue}</p>
                 </div>
-                <button onClick={() => handleDeleteMatch(m.id)} className="bg-red-600 px-2 py-1 rounded text-xs">Del</button>
+                <button onClick={() => handleDeleteMatch(m.id)} className="bg-red-600 px-2 py-1 rounded text-xs hover:bg-red-700">Del</button>
               </div>
             ))}
           </div>
@@ -1480,12 +1748,10 @@ function updateLeagueStandings(match: Match) {
   const battingFirstTeamId = inn1.battingTeamId;
   const battingSecondTeamId = inn2.battingTeamId;
 
-  // Determine winner
   let winnerId = '';
   if ((inn2.runs || 0) > (inn1.runs || 0)) winnerId = battingSecondTeamId;
   else if ((inn1.runs || 0) > (inn2.runs || 0)) winnerId = battingFirstTeamId;
 
-  // Update team stats
   league.teams = league.teams.map(team => {
     const t = { ...team };
     const isTeam1 = team.id === battingFirstTeamId;
@@ -1507,7 +1773,6 @@ function updateLeagueStandings(match: Match) {
         t.lost += 1;
       }
 
-      // Calculate NRR
       if (t.oversBowled > 0 && t.oversPlayed > 0) {
         t.nrr = (t.runsScored / t.oversBowled) - (t.runsConceded / t.oversPlayed);
       }
