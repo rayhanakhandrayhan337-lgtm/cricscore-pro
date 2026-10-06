@@ -306,7 +306,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
 
 // ============= DASHBOARD TAB =============
 function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) => void }) {
-  const matches = getMatches(user.id);
+  const [matches, setMatches] = useState(getMatches(user.id));
   const completedMatches = matches.filter(m => m.status === 'completed');
   const liveMatches = matches.filter(m => m.status === 'live');
   const wins = completedMatches.filter(m => {
@@ -315,7 +315,13 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
   }).length;
 
   const recentMatches = [...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
-  const [, setRefresh] = useState(0);
+
+  const handleDelete = (matchId: string) => {
+    if (confirm('Delete this match?')) {
+      deleteMatch(matchId);
+      setMatches(getMatches(user.id));
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -349,7 +355,7 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
         ) : (
           <div className="space-y-2">
             {recentMatches.map(m => (
-              <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => { if (confirm('Delete this match?')) { deleteMatch(m.id); setRefresh(r => r + 1); } }} />
+              <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => handleDelete(m.id)} />
             ))}
           </div>
         )}
@@ -397,8 +403,19 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
 
 // ============= LIVE TAB =============
 function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) => void }) {
-  const liveMatches = getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0);
+  const [liveMatches, setLiveMatches] = useState(getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0));
   const [broadcastMatch, setBroadcastMatch] = useState<Match | null>(null);
+
+  const refreshMatches = () => {
+    setLiveMatches(getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0));
+  };
+
+  const handleDelete = (matchId: string) => {
+    if (confirm('Delete this live match?')) {
+      deleteMatch(matchId);
+      refreshMatches();
+    }
+  };
 
   const handleShare = (match: Match) => {
     const currentInnings = match.innings?.[match.currentInnings];
@@ -449,6 +466,7 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
                 <div className="flex gap-1">
                   <button onClick={() => handleShare(m)} className="bg-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-700">📤</button>
                   <button onClick={() => setBroadcastMatch(m)} className="bg-purple-600 px-2 py-1 rounded text-xs hover:bg-purple-700">📹</button>
+                  <button onClick={() => handleDelete(m.id)} className="bg-red-600 px-2 py-1 rounded text-xs hover:bg-red-700">🗑️</button>
                 </div>
               </div>
               <div className="mb-2">
@@ -584,7 +602,21 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
 
 // ============= LEAGUE TAB =============
 function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user: User; onCreateLeague: () => void; onCreateMatch: (l: League) => void; onOpenMatch: (m: Match) => void }) {
-  const leagues = getLeagues(user.id);
+  const [leagues, setLeagues] = useState(getLeagues(user.id));
+
+  const handleDeleteLeague = (leagueId: string) => {
+    if (confirm('Delete this league and all its matches?')) {
+      // Delete all league matches first
+      const leagueMatches = getMatches().filter(m => m.leagueId === leagueId);
+      leagueMatches.forEach(m => deleteMatch(m.id));
+      
+      // Delete the league
+      deleteLeague(leagueId);
+      
+      // Update state
+      setLeagues(getLeagues(user.id));
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -603,7 +635,7 @@ function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user:
       ) : (
         <div className="space-y-4">
           {leagues.map(league => (
-            <LeagueCard key={league.id} league={league} onCreateMatch={() => onCreateMatch(league)} onOpenMatch={onOpenMatch} />
+            <LeagueCard key={league.id} league={league} onCreateMatch={() => onCreateMatch(league)} onOpenMatch={onOpenMatch} onDelete={() => handleDeleteLeague(league.id)} />
           ))}
         </div>
       )}
@@ -611,7 +643,7 @@ function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user:
   );
 }
 
-function LeagueCard({ league, onCreateMatch, onOpenMatch }: { league: League; onCreateMatch: () => void; onOpenMatch: (m: Match) => void }) {
+function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: League; onCreateMatch: () => void; onOpenMatch: (m: Match) => void; onDelete: () => void }) {
   const allMatches = getMatches();
   const leagueMatches = allMatches.filter(m => m.leagueId === league.id);
   const sortedTeams = [...league.teams].sort((a, b) => b.points - a.points || b.nrr - a.nrr);
@@ -620,9 +652,14 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch }: { league: League; on
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
       <div className="flex justify-between items-center mb-3">
         <h3 className="font-bold text-lg">{league.name}</h3>
-        <button onClick={onCreateMatch} className="bg-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">
-          + Match
-        </button>
+        <div className="flex gap-1">
+          <button onClick={onCreateMatch} className="bg-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">
+            + Match
+          </button>
+          <button onClick={onDelete} className="bg-red-600 px-3 py-1 rounded text-xs font-bold hover:bg-red-700" title="Delete League">
+            🗑️
+          </button>
+        </div>
       </div>
 
       {/* Point Table */}
@@ -674,8 +711,14 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch }: { league: League; on
 
 // ============= CUSTOM TAB =============
 function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateMatch: () => void; onOpenMatch: (m: Match) => void }) {
-  const matches = getMatches(user.id).filter(m => !m.leagueId);
-  const [, setRefresh] = useState(0);
+  const [matches, setMatches] = useState(getMatches(user.id).filter(m => !m.leagueId));
+
+  const handleDelete = (matchId: string) => {
+    if (confirm('Delete this match?')) {
+      deleteMatch(matchId);
+      setMatches(getMatches(user.id).filter(m => !m.leagueId));
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -694,7 +737,7 @@ function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateM
       ) : (
         <div className="space-y-2">
           {[...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(m => (
-            <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => { if (confirm('Delete this match?')) { deleteMatch(m.id); setRefresh(r => r + 1); } }} />
+            <MatchCard key={m.id} match={m} onClick={() => onOpenMatch(m)} onDelete={() => handleDelete(m.id)} />
           ))}
         </div>
       )}
@@ -919,7 +962,14 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 
 // ============= LIVE SCORING SCREEN =============
 function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: () => void; onUpdate: (m: Match) => void }) {
-  const innings = match.innings[match.currentInnings];
+  // ALL hooks must be at the top before any conditional returns
+  const [showBowlerSelect, setShowBowlerSelect] = useState(false);
+  const [showNewBatsman, setShowNewBatsman] = useState(false);
+  const [inningBreak, setInningBreak] = useState(false);
+  const [showMatchComplete, setShowMatchComplete] = useState(false);
+  const [pendingBatsmanId, setPendingBatsmanId] = useState<string | null>(null);
+
+  const innings = match.innings?.[match.currentInnings];
   
   if (!innings) {
     return (
@@ -935,13 +985,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
   const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
-  const striker = innings.batsmenStats?.[innings.currentBatsmen?.[0]];
-  const nonStriker = innings.batsmenStats?.[innings.currentBatsmen?.[1]];
+  
+  // Get batsman/bowler info - show pending state when modal is open
+  const strikerId = innings.currentBatsmen?.[0];
+  const nonStrikerId = innings.currentBatsmen?.[1];
+  const striker = innings.batsmenStats?.[strikerId];
+  const nonStriker = innings.batsmenStats?.[nonStrikerId];
   const currentBowler = innings.bowlersStats?.[innings.currentBowler];
-  const [showBowlerSelect, setShowBowlerSelect] = useState(false);
-  const [showNewBatsman, setShowNewBatsman] = useState(false);
-  const [inningBreak, setInningBreak] = useState(false);
-  const [showMatchComplete, setShowMatchComplete] = useState(false);
+  
+  // When modal is open, show "Selecting..." state
+  const strikerDisplayName = showNewBatsman ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
+  const bowlerDisplayName = showBowlerSelect ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
   const firstInnings = match.innings[0];
   const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
@@ -1246,25 +1300,30 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Batsmen Cards */}
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
+        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${showNewBatsman ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
           <div className="flex items-center gap-1 mb-1">
             <span className="text-green-400 text-xs">🏏</span>
             <span className="text-xs text-green-300 font-bold">STRIKER</span>
-            {striker?.isOut && <span className="text-xs text-red-400 ml-auto">OUT</span>}
+            {showNewBatsman && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
+            {striker?.isOut && !showNewBatsman && <span className="text-xs text-red-400 ml-auto">OUT</span>}
           </div>
-          <p className="font-bold text-sm truncate">{striker?.playerName || 'Select Batsman'}</p>
-          <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
-          <div className="flex gap-2 text-xs text-gray-400 mt-1">
-            <span>4s: {striker?.fours || 0}</span>
-            <span>6s: {striker?.sixes || 0}</span>
-          </div>
+          <p className="font-bold text-sm truncate">{strikerDisplayName}</p>
+          {!showNewBatsman && (
+            <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
+          )}
+          {!showNewBatsman && (
+            <div className="flex gap-2 text-xs text-gray-400 mt-1">
+              <span>4s: {striker?.fours || 0}</span>
+              <span>6s: {striker?.sixes || 0}</span>
+            </div>
+          )}
         </div>
         <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 rounded-xl p-3 border border-blue-700/30">
           <div className="flex items-center gap-1 mb-1">
             <span className="text-blue-400 text-xs">🏏</span>
             <span className="text-xs text-blue-300">NON-STRIKER</span>
           </div>
-          <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'Select Batsman'}</p>
+          <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'No batsman'}</p>
           <p className="text-2xl font-bold text-blue-400">{nonStriker?.runs || 0} <span className="text-sm text-gray-400">({nonStriker?.balls || 0})</span></p>
           <div className="flex gap-2 text-xs text-gray-400 mt-1">
             <span>4s: {nonStriker?.fours || 0}</span>
@@ -1275,15 +1334,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Bowler Card */}
       <div className="px-4 mb-3">
-        <div className="bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-3 border border-purple-700/30">
+        <div className={`bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-3 border ${showBowlerSelect ? 'border-yellow-600/50 animate-pulse' : 'border-purple-700/30'}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-purple-300">⚾ BOWLER</p>
-              <p className="font-bold text-sm">{currentBowler?.playerName || 'Select Bowler'}</p>
+              <p className="text-xs text-purple-300">⚾ BOWLER {showBowlerSelect && <span className="text-yellow-400">- NEW OVER</span>}</p>
+              <p className="font-bold text-sm">{bowlerDisplayName}</p>
             </div>
-            <div className="text-right">
-              <p className="text-lg font-bold text-purple-400">{currentBowler?.overs || 0}.{currentBowler?.balls || 0}-{currentBowler?.maidens || 0}-{currentBowler?.runs || 0}-{currentBowler?.wickets || 0}</p>
-            </div>
+            {!showBowlerSelect && (
+              <div className="text-right">
+                <p className="text-lg font-bold text-purple-400">{currentBowler?.overs || 0}.{currentBowler?.balls || 0}-{currentBowler?.maidens || 0}-{currentBowler?.runs || 0}-{currentBowler?.wickets || 0}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
