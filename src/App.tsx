@@ -521,12 +521,9 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
     }
     text += `\n🔴 Watch Live on CricScore Pro!`;
 
-    if (navigator.share) {
-      navigator.share({ title: 'CricScore Pro - Live Broadcast', text }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Broadcast link copied! Share on Facebook, WhatsApp, or social media.');
-    }
+    // Share to Facebook
+    const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(text)}`;
+    window.open(facebookShareUrl, '_blank');
   };
 
   return (
@@ -717,12 +714,17 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat');
   const [step, setStep] = useState(1);
 
+  const [leagueTeam1Id, setLeagueTeam1Id] = useState<string>('');
+  const [leagueTeam2Id, setLeagueTeam2Id] = useState<string>('');
+
   useEffect(() => {
     if (league) {
       setTeam1Name(league.teams[0]?.name || '');
       setTeam2Name(league.teams[1]?.name || '');
       setTeam1Players(league.teams[0]?.players || []);
       setTeam2Players(league.teams[1]?.players || []);
+      setLeagueTeam1Id(league.teams[0]?.id || '');
+      setLeagueTeam2Id(league.teams[1]?.id || '');
     }
   }, [league]);
 
@@ -756,8 +758,12 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 
     const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
     
-    const team1: { id: string; name: string; players: Player[] } = { id: `t1_${Date.now()}`, name: team1Name, players: team1Players };
-    const team2: { id: string; name: string; players: Player[] } = { id: `t2_${Date.now()}`, name: team2Name, players: team2Players };
+    // Use league team IDs if this is a league match, otherwise generate new IDs
+    const team1Id = league && leagueTeam1Id ? leagueTeam1Id : `t1_${Date.now()}`;
+    const team2Id = league && leagueTeam2Id ? leagueTeam2Id : `t2_${Date.now()}`;
+    
+    const team1: { id: string; name: string; players: Player[] } = { id: team1Id, name: team1Name, players: team1Players };
+    const team2: { id: string; name: string; players: Player[] } = { id: team2Id, name: team2Name, players: team2Players };
 
     const striker = team1Players[0].id;
     const nonStriker = team1Players[1].id;
@@ -1114,7 +1120,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) return;
-    inn.currentBatsmen[0] = playerId;
+    inn.currentBatsmen = [playerId, inn.currentBatsmen[1]];
     setShowNewBatsman(false);
     onUpdate(newMatch);
   };
@@ -1240,12 +1246,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Batsmen Cards */}
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        <div className="bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border border-green-700/30">
+        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
           <div className="flex items-center gap-1 mb-1">
             <span className="text-green-400 text-xs">🏏</span>
             <span className="text-xs text-green-300 font-bold">STRIKER</span>
+            {striker?.isOut && <span className="text-xs text-red-400 ml-auto">OUT</span>}
           </div>
-          <p className="font-bold text-sm truncate">{striker?.playerName || 'Waiting...'}</p>
+          <p className="font-bold text-sm truncate">{striker?.playerName || 'Select Batsman'}</p>
           <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
           <div className="flex gap-2 text-xs text-gray-400 mt-1">
             <span>4s: {striker?.fours || 0}</span>
@@ -1257,7 +1264,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
             <span className="text-blue-400 text-xs">🏏</span>
             <span className="text-xs text-blue-300">NON-STRIKER</span>
           </div>
-          <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'Waiting...'}</p>
+          <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'Select Batsman'}</p>
           <p className="text-2xl font-bold text-blue-400">{nonStriker?.runs || 0} <span className="text-sm text-gray-400">({nonStriker?.balls || 0})</span></p>
           <div className="flex gap-2 text-xs text-gray-400 mt-1">
             <span>4s: {nonStriker?.fours || 0}</span>
@@ -1390,12 +1397,9 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
     if (match.result) text += `\nResult: ${match.result}`;
     text += `\n\nvia CricScore Pro`;
 
-    if (navigator.share) {
-      navigator.share({ title: 'CricScore Pro - Match Summary', text }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Match summary copied! Share on Facebook or social media.');
-    }
+    // Share to Facebook
+    const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(text)}`;
+    window.open(facebookShareUrl, '_blank');
   };
 
   return (
