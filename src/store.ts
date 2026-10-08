@@ -36,7 +36,7 @@ export function setCurrentUser(user: User | null) {
   }
 }
 
-export function login(email: string, password: string): { success: boolean; user?: User; error?: string } {
+export async function login(email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
   const users = getUsers();
   const user = users.find(u => u.email === email);
   
@@ -49,6 +49,17 @@ export function login(email: string, password: string): { success: boolean; user
       createdAt: new Date().toISOString()
     };
     setCurrentUser(adminUser);
+    
+    // Sync admin to Firebase
+    try {
+      const { firebaseLogin, saveUserToFirebase } = await import('./firebase');
+      await firebaseLogin(email, password);
+      await saveUserToFirebase(adminUser);
+      console.log('✅ Admin logged in and synced to Firebase');
+    } catch (error) {
+      console.warn('⚠️ Firebase admin login failed');
+    }
+    
     return { success: true, user: adminUser };
   }
   
@@ -58,10 +69,21 @@ export function login(email: string, password: string): { success: boolean; user
   if (storedPass !== password) return { success: false, error: 'Invalid password' };
   
   setCurrentUser(user);
+  
+  // Login to Firebase and sync user data
+  try {
+    const { firebaseLogin, saveUserToFirebase } = await import('./firebase');
+    await firebaseLogin(email, password);
+    await saveUserToFirebase(user);
+    console.log('✅ User logged in and synced to Firebase:', user.email);
+  } catch (error) {
+    console.warn('⚠️ Firebase login failed, continuing with local user');
+  }
+  
   return { success: true, user };
 }
 
-export function signup(email: string, password: string, name: string): { success: boolean; user?: User; error?: string } {
+export async function signup(email: string, password: string, name: string): Promise<{ success: boolean; user?: User; error?: string }> {
   const users = getUsers();
   if (users.find(u => u.email === email)) return { success: false, error: 'Email already exists' };
   
@@ -73,10 +95,33 @@ export function signup(email: string, password: string, name: string): { success
     createdAt: new Date().toISOString()
   };
   
+  // Save to local storage
   users.push(newUser);
   saveUsers(users);
   localStorage.setItem(`cric_pass_${email}`, password);
   setCurrentUser(newUser);
+  
+  // Save to Firebase Authentication and Firestore
+  try {
+    const { firebaseSignup, saveUserToFirebase } = await import('./firebase');
+    
+    // Create Firebase Auth user
+    const firebaseUser = await firebaseSignup(email, password, name);
+    console.log('✅ Firebase Auth user created:', firebaseUser.uid);
+    
+    // Save user data to Firestore
+    const userWithFirebaseId = {
+      ...newUser,
+      firebaseUid: firebaseUser.uid
+    };
+    await saveUserToFirebase(userWithFirebaseId);
+    console.log('✅ User data saved to Firestore');
+    
+  } catch (error: any) {
+    console.warn('⚠️ Firebase signup failed:', error.message);
+    // Continue anyway - user is saved locally
+  }
+  
   return { success: true, user: newUser };
 }
 

@@ -56,16 +56,16 @@ function AuthScreen({ onLogin }: { onLogin: (user: User) => void }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (isLogin) {
-      const result = login(email, password);
+      const result = await login(email, password);
       if (result.success && result.user) onLogin(result.user);
       else setError(result.error || 'Login failed');
     } else {
       if (!name.trim()) { setError('Name is required'); return; }
-      const result = signup(email, password, name);
+      const result = await signup(email, password, name);
       if (result.success && result.user) onLogin(result.user);
       else setError(result.error || 'Signup failed');
     }
