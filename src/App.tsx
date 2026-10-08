@@ -1037,8 +1037,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
   const [pendingBatsmanId, setPendingBatsmanId] = useState<string | null>(null);
+  const [currentMatch, setCurrentMatch] = useState<Match>(match);
 
-  const innings = match.innings?.[match.currentInnings];
+  // Update currentMatch when match prop changes
+  useEffect(() => {
+    setCurrentMatch(match);
+  }, [match]);
+
+  const innings = currentMatch.innings?.[currentMatch.currentInnings];
   
   if (!innings) {
     return (
@@ -1052,8 +1058,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
-  const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
+  const battingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team1 : currentMatch.team2;
+  const bowlingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team2 : currentMatch.team1;
   
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
@@ -1066,18 +1072,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const strikerDisplayName = showNewBatsman ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
   const bowlerDisplayName = showBowlerSelect ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
-  const firstInnings = match.innings[0];
-  const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
+  const firstInnings = currentMatch.innings[0];
+  const target = currentMatch.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
   const remaining = target !== null ? target - innings.runs : null;
-  const ballsRemaining = (match.totalOvers * 6) - (innings.overs * 6 + innings.balls);
+  const ballsRemaining = (currentMatch.totalOvers * 6) - (innings.overs * 6 + innings.balls);
   const totalBallsBowled = innings.overs + innings.balls / 6;
   const runRate = totalBallsBowled > 0 ? (innings.runs / totalBallsBowled).toFixed(2) : '0.00';
   const reqRunRate = remaining !== null && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
 
-  const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
+  const getTeamName = (teamId: string) => teamId === currentMatch.team1.id ? currentMatch.team1.name : currentMatch.team2.name;
 
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) return;
     
@@ -1161,7 +1167,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // End of over - rotate strike and select new bowler
     if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-      if (inn.overs >= match.totalOvers) {
+      if (inn.overs >= currentMatch.totalOvers) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
@@ -1212,7 +1218,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const startSecondInnings = () => {
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const firstInnings = newMatch.innings[0];
     if (!firstInnings) return;
     const secondBattingTeamId = firstInnings.bowlingTeamId;
@@ -1252,7 +1258,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const selectNewBatsman = (playerId: string) => {
     console.log('🔄 Selecting new batsman:', playerId);
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
       console.error('❌ Innings not found');
@@ -1273,7 +1279,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const selectBowler = (playerId: string) => {
     console.log('🔄 Selecting new bowler:', playerId);
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
       console.error('❌ Innings not found');
@@ -1293,7 +1299,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const handleUndo = () => {
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn || !inn.ballEvents || inn.ballEvents.length === 0) return;
     
