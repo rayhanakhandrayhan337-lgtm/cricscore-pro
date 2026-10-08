@@ -1142,9 +1142,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (inn.wickets >= 10) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
+        onUpdate(newMatch);
       } else {
+        // Show modal but don't update yet - wait for batsman selection
         setShowNewBatsman(true);
+        // Store the match state temporarily
+        setPendingBatsmanId(null);
+        // Update the match without the new batsman yet
+        onUpdate(newMatch);
       }
+      return; // Don't call onUpdate again below
     }
 
     if (!isWide && (runs === 1 || runs === 3)) {
@@ -1157,9 +1164,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (inn.overs >= match.totalOvers) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
+        onUpdate(newMatch);
       } else {
+        // Show modal but don't update yet - wait for bowler selection
         setShowBowlerSelect(true);
+        onUpdate(newMatch);
       }
+      return; // Don't call onUpdate again below
     }
 
     if (target && inn.runs >= target) {
@@ -1240,21 +1251,45 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const selectNewBatsman = (playerId: string) => {
+    console.log('🔄 Selecting new batsman:', playerId);
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
-    if (!inn) return;
+    if (!inn) {
+      console.error('❌ Innings not found');
+      return;
+    }
+    
+    // Update current batsman
     inn.currentBatsmen = [playerId, inn.currentBatsmen[1]];
+    console.log('✅ Updated currentBatsmen:', inn.currentBatsmen);
+    
+    // Close modal
     setShowNewBatsman(false);
+    
+    // Force update
     onUpdate(newMatch);
+    console.log('✅ Match updated with new batsman');
   };
 
   const selectBowler = (playerId: string) => {
+    console.log('🔄 Selecting new bowler:', playerId);
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
-    if (!inn) return;
+    if (!inn) {
+      console.error('❌ Innings not found');
+      return;
+    }
+    
+    // Update current bowler
     inn.currentBowler = playerId;
+    console.log('✅ Updated currentBowler:', inn.currentBowler);
+    
+    // Close modal
     setShowBowlerSelect(false);
+    
+    // Force update
     onUpdate(newMatch);
+    console.log('✅ Match updated with new bowler');
   };
 
   const handleUndo = () => {
