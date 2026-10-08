@@ -214,6 +214,46 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
           </div>
         </div>
 
+        {/* Google Drive Integration */}
+        <div className="bg-gray-800 rounded-xl p-4">
+          <h3 className="font-bold mb-3">☁️ Google Drive Backup</h3>
+          <p className="text-xs text-gray-400 mb-3">Save your match history to your personal Google Drive</p>
+          <div className="space-y-2">
+            <button 
+              onClick={async () => {
+                try {
+                  const { exportAllMatchesToDrive } = await import('./drive');
+                  const count = await exportAllMatchesToDrive();
+                  setMessage(`✅ ${count} matches exported to Google Drive!`);
+                  setTimeout(() => setMessage(''), 3000);
+                } catch (err: any) {
+                  setError('Failed to export: ' + err.message);
+                  setTimeout(() => setError(''), 3000);
+                }
+              }}
+              className="w-full bg-blue-600 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm"
+            >
+              📤 Export All Matches to Drive
+            </button>
+            <button 
+              onClick={async () => {
+                try {
+                  const { importAllMatchesFromDrive } = await import('./drive');
+                  const count = await importAllMatchesFromDrive();
+                  setMessage(`✅ ${count} matches imported from Google Drive!`);
+                  setTimeout(() => setMessage(''), 3000);
+                } catch (err: any) {
+                  setError('Failed to import: ' + err.message);
+                  setTimeout(() => setError(''), 3000);
+                }
+              }}
+              className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 text-sm"
+            >
+              📥 Import Matches from Drive
+            </button>
+          </div>
+        </div>
+
         {/* Logout */}
         <button onClick={onLogout} className="w-full bg-red-600 py-3 rounded-xl font-bold hover:bg-red-700 transition-all">
           🚪 Logout
