@@ -9,13 +9,18 @@ export function getUsers(): User[] {
   return data ? JSON.parse(data) : [];
 }
 
-export function saveUsers(users: User[]) {
+export async function saveUsers(users: User[]) {
   localStorage.setItem('cric_users', JSON.stringify(users));
   
   // Sync each user with Firebase
-  users.forEach(user => {
-    saveUserToFirebase(user).catch(err => console.warn('Firebase sync failed:', err));
-  });
+  try {
+    for (const user of users) {
+      await saveUserToFirebase(user);
+    }
+    console.log('✅ Users saved locally and to Firebase');
+  } catch (err) {
+    console.warn('⚠️ Firebase sync failed:', err);
+  }
 }
 
 export function getCurrentUser(): User | null {
@@ -82,7 +87,7 @@ export function getMatches(userId?: string): Match[] {
   return matches;
 }
 
-export function saveMatch(match: Match) {
+export async function saveMatch(match: Match) {
   const matches = getMatches();
   const idx = matches.findIndex(m => m.id === match.id);
   if (idx >= 0) matches[idx] = match;
@@ -90,15 +95,25 @@ export function saveMatch(match: Match) {
   localStorage.setItem('cric_matches', JSON.stringify(matches));
   
   // Sync with Firebase
-  saveMatchToFirebase(match).catch(err => console.warn('Firebase sync failed:', err));
+  try {
+    await saveMatchToFirebase(match);
+    console.log('✅ Match saved locally and to Firebase');
+  } catch (err) {
+    console.warn('⚠️ Firebase sync failed:', err);
+  }
 }
 
-export function deleteMatch(matchId: string) {
+export async function deleteMatch(matchId: string) {
   const matches = getMatches().filter(m => m.id !== matchId);
   localStorage.setItem('cric_matches', JSON.stringify(matches));
   
   // Sync with Firebase
-  deleteMatchFromFirebase(matchId).catch(err => console.warn('Firebase sync failed:', err));
+  try {
+    await deleteMatchFromFirebase(matchId);
+    console.log('✅ Match deleted locally and from Firebase');
+  } catch (err) {
+    console.warn('⚠️ Firebase sync failed:', err);
+  }
 }
 
 export function getLeagues(userId?: string): League[] {
@@ -108,7 +123,7 @@ export function getLeagues(userId?: string): League[] {
   return leagues;
 }
 
-export function saveLeague(league: League) {
+export async function saveLeague(league: League) {
   const leagues = getLeagues();
   const idx = leagues.findIndex(l => l.id === league.id);
   if (idx >= 0) leagues[idx] = league;
@@ -116,15 +131,25 @@ export function saveLeague(league: League) {
   localStorage.setItem('cric_leagues', JSON.stringify(leagues));
   
   // Sync with Firebase
-  saveLeagueToFirebase(league).catch(err => console.warn('Firebase sync failed:', err));
+  try {
+    await saveLeagueToFirebase(league);
+    console.log('✅ League saved locally and to Firebase');
+  } catch (err) {
+    console.warn('⚠️ Firebase sync failed:', err);
+  }
 }
 
-export function deleteLeague(leagueId: string) {
+export async function deleteLeague(leagueId: string) {
   const leagues = getLeagues().filter(l => l.id !== leagueId);
   localStorage.setItem('cric_leagues', JSON.stringify(leagues));
   
   // Sync with Firebase
-  deleteLeagueFromFirebase(leagueId).catch(err => console.warn('Firebase sync failed:', err));
+  try {
+    await deleteLeagueFromFirebase(leagueId);
+    console.log('✅ League deleted locally and from Firebase');
+  } catch (err) {
+    console.warn('⚠️ Firebase sync failed:', err);
+  }
 }
 
 export function getAdminLogs(): AdminLog[] {

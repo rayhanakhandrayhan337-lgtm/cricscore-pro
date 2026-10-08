@@ -9,6 +9,13 @@ export default function App() {
   const [screen, setScreen] = useState<string>('splash');
 
   useEffect(() => {
+    // Sync data with Firebase when app loads
+    if (user) {
+      import('./firebase').then(({ syncAllDataToFirebase }) => {
+        syncAllDataToFirebase(user.id).catch(err => console.warn('Sync failed:', err));
+      });
+    }
+
     const timer = setTimeout(() => {
       setScreen(user ? 'home' : 'auth');
     }, 2000);
@@ -280,7 +287,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
   ];
 
   if (activeMatch && activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
-    return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
+    return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={async (m) => { setActiveMatch(m); await saveMatch(m); }} />;
   }
 
   if (activeMatch && activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
@@ -356,9 +363,9 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
 
   const recentMatches = [...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
 
-  const handleDelete = (matchId: string) => {
+  const handleDelete = async (matchId: string) => {
     if (confirm('Delete this match?')) {
-      deleteMatch(matchId);
+      await deleteMatch(matchId);
       setMatches(getMatches(user.id));
     }
   };
@@ -450,9 +457,9 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
     setLiveMatches(getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0));
   };
 
-  const handleDelete = (matchId: string) => {
+  const handleDelete = async (matchId: string) => {
     if (confirm('Delete this live match?')) {
-      deleteMatch(matchId);
+      await deleteMatch(matchId);
       refreshMatches();
     }
   };
@@ -644,14 +651,16 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
 function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user: User; onCreateLeague: () => void; onCreateMatch: (l: League) => void; onOpenMatch: (m: Match) => void }) {
   const [leagues, setLeagues] = useState(getLeagues(user.id));
 
-  const handleDeleteLeague = (leagueId: string) => {
+  const handleDeleteLeague = async (leagueId: string) => {
     if (confirm('Delete this league and all its matches?')) {
       // Delete all league matches first
       const leagueMatches = getMatches().filter(m => m.leagueId === leagueId);
-      leagueMatches.forEach(m => deleteMatch(m.id));
+      for (const m of leagueMatches) {
+        await deleteMatch(m.id);
+      }
       
       // Delete the league
-      deleteLeague(leagueId);
+      await deleteLeague(leagueId);
       
       // Update state
       setLeagues(getLeagues(user.id));
@@ -753,9 +762,9 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
 function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateMatch: () => void; onOpenMatch: (m: Match) => void }) {
   const [matches, setMatches] = useState(getMatches(user.id).filter(m => !m.leagueId));
 
-  const handleDelete = (matchId: string) => {
+  const handleDelete = async (matchId: string) => {
     if (confirm('Delete this match?')) {
-      deleteMatch(matchId);
+      await deleteMatch(matchId);
       setMatches(getMatches(user.id).filter(m => !m.leagueId));
     }
   };
@@ -834,7 +843,7 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
     setTotalOvers(options[Math.floor(Math.random() * options.length)]);
   };
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!team1Name || !team2Name || !venue) { alert('Please fill all fields'); return; }
     if (team1Players.length !== 11 || team2Players.length !== 11) { alert('Each team must have 11 players'); return; }
     if (!tossWinner) { alert('Please select toss winner'); return; }
@@ -890,7 +899,7 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
       leagueId: league?.id
     };
 
-    saveMatch(match);
+    await saveMatch(match);
     onStart(match);
   };
 
@@ -1632,7 +1641,7 @@ function CreateLeagueScreen({ user, onBack }: { user: User; onBack: () => void }
     setTeams(newTeams);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!leagueName) { alert('Enter league name'); return; }
     if (teams.length < 2) { alert('Add at least 2 teams'); return; }
 
@@ -1645,7 +1654,7 @@ function CreateLeagueScreen({ user, onBack }: { user: User; onBack: () => void }
       createdAt: new Date().toISOString()
     };
 
-    saveLeague(league);
+    await saveLeague(league);
     onBack();
   };
 
@@ -1739,9 +1748,9 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
     }
   };
 
-  const handleDeleteMatch = (matchId: string) => {
+  const handleDeleteMatch = async (matchId: string) => {
     if (confirm('Delete this match?')) {
-      deleteMatch(matchId);
+      await deleteMatch(matchId);
       addAdminLog('Delete Match', `Deleted match ${matchId}`);
       window.location.reload();
     }
@@ -1840,7 +1849,7 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
 }
 
 // ============= LEAGUE STANDINGS UPDATE =============
-function updateLeagueStandings(match: Match) {
+async function updateLeagueStandings(match: Match) {
   if (!match.leagueId) return;
   const leagues = getLeagues();
   const league = leagues.find(l => l.id === match.leagueId);
@@ -1886,5 +1895,5 @@ function updateLeagueStandings(match: Match) {
   });
 
   league.matches.push(match.id);
-  saveLeague(league);
+  await saveLeague(league);
 }
