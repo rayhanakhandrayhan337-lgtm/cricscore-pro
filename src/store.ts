@@ -103,17 +103,16 @@ export async function saveMatch(match: Match) {
   }
 }
 
-export async function deleteMatch(matchId: string) {
+export function deleteMatch(matchId: string) {
+  // Delete from local storage instantly
   const matches = getMatches().filter(m => m.id !== matchId);
   localStorage.setItem('cric_matches', JSON.stringify(matches));
+  console.log('✅ Match deleted from local storage:', matchId);
   
-  // Sync with Firebase
-  try {
-    await deleteMatchFromFirebase(matchId);
-    console.log('✅ Match deleted locally and from Firebase');
-  } catch (err) {
-    console.warn('⚠️ Firebase sync failed:', err);
-  }
+  // Delete from Firebase in background (don't wait)
+  deleteMatchFromFirebase(matchId).catch(err => {
+    console.warn('⚠️ Firebase delete failed:', err);
+  });
 }
 
 export function getLeagues(userId?: string): League[] {
@@ -139,17 +138,16 @@ export async function saveLeague(league: League) {
   }
 }
 
-export async function deleteLeague(leagueId: string) {
+export function deleteLeague(leagueId: string) {
+  // Delete from local storage instantly
   const leagues = getLeagues().filter(l => l.id !== leagueId);
   localStorage.setItem('cric_leagues', JSON.stringify(leagues));
+  console.log('✅ League deleted from local storage:', leagueId);
   
-  // Sync with Firebase
-  try {
-    await deleteLeagueFromFirebase(leagueId);
-    console.log('✅ League deleted locally and from Firebase');
-  } catch (err) {
-    console.warn('⚠️ Firebase sync failed:', err);
-  }
+  // Delete from Firebase in background (don't wait)
+  deleteLeagueFromFirebase(leagueId).catch(err => {
+    console.warn('⚠️ Firebase delete failed:', err);
+  });
 }
 
 export function getAdminLogs(): AdminLog[] {

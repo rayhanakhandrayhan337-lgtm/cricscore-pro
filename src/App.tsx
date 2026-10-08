@@ -363,10 +363,17 @@ function DashboardTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Matc
 
   const recentMatches = [...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
 
-  const handleDelete = async (matchId: string) => {
-    if (confirm('Delete this match?')) {
-      await deleteMatch(matchId);
-      setMatches(getMatches(user.id));
+  const handleDelete = (matchId: string) => {
+    if (window.confirm('Are you sure you want to delete this match?')) {
+      console.log('Deleting match:', matchId);
+      deleteMatch(matchId);
+      console.log('Match deleted, updating state...');
+      // Force re-render by creating new array
+      setTimeout(() => {
+        const updatedMatches = getMatches(user.id);
+        console.log('Updated matches count:', updatedMatches.length);
+        setMatches([...updatedMatches]);
+      }, 100);
     }
   };
 
@@ -457,10 +464,15 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
     setLiveMatches(getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0));
   };
 
-  const handleDelete = async (matchId: string) => {
-    if (confirm('Delete this live match?')) {
-      await deleteMatch(matchId);
-      refreshMatches();
+  const handleDelete = (matchId: string) => {
+    if (window.confirm('Are you sure you want to delete this live match?')) {
+      console.log('Deleting live match:', matchId);
+      deleteMatch(matchId);
+      setTimeout(() => {
+        const updated = getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0);
+        console.log('Updated live matches:', updated.length);
+        setLiveMatches(updated);
+      }, 100);
     }
   };
 
@@ -651,19 +663,22 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
 function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user: User; onCreateLeague: () => void; onCreateMatch: (l: League) => void; onOpenMatch: (m: Match) => void }) {
   const [leagues, setLeagues] = useState(getLeagues(user.id));
 
-  const handleDeleteLeague = async (leagueId: string) => {
-    if (confirm('Delete this league and all its matches?')) {
+  const handleDeleteLeague = (leagueId: string) => {
+    if (window.confirm('Are you sure you want to delete this league and all its matches?')) {
+      console.log('Deleting league:', leagueId);
       // Delete all league matches first
       const leagueMatches = getMatches().filter(m => m.leagueId === leagueId);
-      for (const m of leagueMatches) {
-        await deleteMatch(m.id);
-      }
+      console.log('League matches to delete:', leagueMatches.length);
+      leagueMatches.forEach(m => deleteMatch(m.id));
       
       // Delete the league
-      await deleteLeague(leagueId);
+      deleteLeague(leagueId);
       
-      // Update state
-      setLeagues(getLeagues(user.id));
+      setTimeout(() => {
+        const updated = getLeagues(user.id);
+        console.log('Updated leagues:', updated.length);
+        setLeagues([...updated]);
+      }, 100);
     }
   };
 
@@ -762,10 +777,15 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
 function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateMatch: () => void; onOpenMatch: (m: Match) => void }) {
   const [matches, setMatches] = useState(getMatches(user.id).filter(m => !m.leagueId));
 
-  const handleDelete = async (matchId: string) => {
-    if (confirm('Delete this match?')) {
-      await deleteMatch(matchId);
-      setMatches(getMatches(user.id).filter(m => !m.leagueId));
+  const handleDelete = (matchId: string) => {
+    if (window.confirm('Are you sure you want to delete this match?')) {
+      console.log('Deleting custom match:', matchId);
+      deleteMatch(matchId);
+      setTimeout(() => {
+        const updated = getMatches(user.id).filter(m => !m.leagueId);
+        console.log('Updated custom matches:', updated.length);
+        setMatches([...updated]);
+      }, 100);
     }
   };
 
@@ -1740,19 +1760,23 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
   const handleDeleteUser = (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
-    if (confirm(`Delete user "${targetUser.name}" (${targetUser.email})?`)) {
+    if (window.confirm(`Are you sure you want to delete user "${targetUser.name}" (${targetUser.email})?`)) {
+      console.log('Admin deleting user:', userId);
       const updatedUsers = users.filter(u => u.id !== userId);
-      setUsers(updatedUsers);
+      setUsers([...updatedUsers]);
       saveUsers(updatedUsers);
       addAdminLog('Delete User', `Deleted user "${targetUser.name}" (${targetUser.email})`);
     }
   };
 
-  const handleDeleteMatch = async (matchId: string) => {
-    if (confirm('Delete this match?')) {
-      await deleteMatch(matchId);
+  const handleDeleteMatch = (matchId: string) => {
+    if (window.confirm('Are you sure you want to delete this match?')) {
+      console.log('Admin deleting match:', matchId);
+      deleteMatch(matchId);
       addAdminLog('Delete Match', `Deleted match ${matchId}`);
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 200);
     }
   };
 
