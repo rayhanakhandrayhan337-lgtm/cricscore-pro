@@ -1042,13 +1042,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
   const nonStrikerId = innings.currentBatsmen?.[1];
-  const striker = innings.batsmenStats?.[strikerId];
-  const nonStriker = innings.batsmenStats?.[nonStrikerId];
-  const currentBowler = innings.bowlersStats?.[innings.currentBowler];
+  const striker = strikerId ? innings.batsmenStats?.[strikerId] : null;
+  const nonStriker = nonStrikerId ? innings.batsmenStats?.[nonStrikerId] : null;
+  const currentBowler = innings.currentBowler ? innings.bowlersStats?.[innings.currentBowler] : null;
   
-  // When modal is open, show "Selecting..." state
-  const strikerDisplayName = showNewBatsman ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
-  const bowlerDisplayName = showBowlerSelect ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
+  // When currentBatsmen[0] or currentBowler is empty, show "Selecting..." state
+  const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
+  const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
   const firstInnings = match.innings[0];
   const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
@@ -1128,6 +1128,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
+        // Clear current batsman so UI shows "Selecting..."
+        inn.currentBatsmen[0] = '';
         // Update the match with wicket info
         onUpdate(newMatch);
         // Show modal for new batsman selection
@@ -1148,6 +1150,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
+        // Clear current bowler so UI shows "Selecting..."
+        inn.currentBowler = '';
         // Update the match with over completion
         onUpdate(newMatch);
         // Show modal for new bowler selection
@@ -1394,18 +1398,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Batsmen Cards */}
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${showNewBatsman ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
+        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${!strikerId ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
           <div className="flex items-center gap-1 mb-1">
             <span className="text-green-400 text-xs">🏏</span>
             <span className="text-xs text-green-300 font-bold">STRIKER</span>
-            {showNewBatsman && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
-            {striker?.isOut && !showNewBatsman && <span className="text-xs text-red-400 ml-auto">OUT</span>}
+            {!strikerId && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
+            {striker?.isOut && strikerId && <span className="text-xs text-red-400 ml-auto">OUT</span>}
           </div>
           <p className="font-bold text-sm truncate">{strikerDisplayName}</p>
-          {!showNewBatsman && (
+          {strikerId && (
             <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
           )}
-          {!showNewBatsman && (
+          {strikerId && (
             <div className="flex gap-2 text-xs text-gray-400 mt-1">
               <span>4s: {striker?.fours || 0}</span>
               <span>6s: {striker?.sixes || 0}</span>
@@ -1428,13 +1432,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Bowler Card */}
       <div className="px-4 mb-3">
-        <div className={`bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-3 border ${showBowlerSelect ? 'border-yellow-600/50 animate-pulse' : 'border-purple-700/30'}`}>
+        <div className={`bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-3 border ${!innings.currentBowler ? 'border-yellow-600/50 animate-pulse' : 'border-purple-700/30'}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-purple-300">⚾ BOWLER {showBowlerSelect && <span className="text-yellow-400">- NEW OVER</span>}</p>
+              <p className="text-xs text-purple-300">⚾ BOWLER {!innings.currentBowler && <span className="text-yellow-400">- NEW OVER</span>}</p>
               <p className="font-bold text-sm">{bowlerDisplayName}</p>
             </div>
-            {!showBowlerSelect && (
+            {innings.currentBowler && (
               <div className="text-right">
                 <p className="text-lg font-bold text-purple-400">{currentBowler?.overs || 0}.{currentBowler?.balls || 0}-{currentBowler?.maidens || 0}-{currentBowler?.runs || 0}-{currentBowler?.wickets || 0}</p>
               </div>
