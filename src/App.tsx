@@ -242,22 +242,6 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
             >
               📤 Export All Matches to Drive
             </button>
-            <button 
-              onClick={async () => {
-                try {
-                  const { importAllMatchesFromDrive } = await import('./drive');
-                  const count = await importAllMatchesFromDrive();
-                  setMessage(`✅ ${count} matches imported from Google Drive!`);
-                  setTimeout(() => setMessage(''), 3000);
-                } catch (err: any) {
-                  setError('Failed to import: ' + err.message);
-                  setTimeout(() => setError(''), 3000);
-                }
-              }}
-              className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 text-sm"
-            >
-              📥 Import Matches from Drive
-            </button>
           </div>
         </div>
 
@@ -736,6 +720,7 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
               <th className="text-center py-2 px-1">P</th>
               <th className="text-center py-2 px-1">W</th>
               <th className="text-center py-2 px-1">L</th>
+              <th className="text-center py-2 px-1">T</th>
               <th className="text-center py-2 px-1">Pts</th>
               <th className="text-center py-2 px-1">NRR</th>
             </tr>
@@ -748,6 +733,7 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
                 <td className="py-2 px-1 text-center">{team.played}</td>
                 <td className="py-2 px-1 text-center text-green-400">{team.won}</td>
                 <td className="py-2 px-1 text-center text-red-400">{team.lost}</td>
+                <td className="py-2 px-1 text-center text-gray-400">{team.tied || 0}</td>
                 <td className="py-2 px-1 text-center font-bold text-yellow-400">{team.points}</td>
                 <td className="py-2 px-1 text-center text-blue-300">{team.nrr > 0 ? '+' : ''}{team.nrr.toFixed(3)}</td>
               </tr>
@@ -1036,14 +1022,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [showNewBatsman, setShowNewBatsman] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
-  const [pendingBatsmanId, setPendingBatsmanId] = useState<string | null>(null);
+  
+  // ✅ NEW: Local state to hold the latest match data
   const [currentMatch, setCurrentMatch] = useState<Match>(match);
-
-  // Update currentMatch when match prop changes
+  
+  // Update local state when match prop changes
   useEffect(() => {
     setCurrentMatch(match);
   }, [match]);
 
+  // Use local state
   const innings = currentMatch.innings?.[currentMatch.currentInnings];
   
   if (!innings) {
@@ -1064,13 +1052,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
   const nonStrikerId = innings.currentBatsmen?.[1];
-  const striker = innings.batsmenStats?.[strikerId];
-  const nonStriker = innings.batsmenStats?.[nonStrikerId];
-  const currentBowler = innings.bowlersStats?.[innings.currentBowler];
+  const striker = strikerId ? innings.batsmenStats?.[strikerId] : null;
+  const nonStriker = nonStrikerId ? innings.batsmenStats?.[nonStrikerId] : null;
+  const currentBowler = innings.currentBowler ? innings.bowlersStats?.[innings.currentBowler] : null;
   
-  // When modal is open, show "Selecting..." state
-  const strikerDisplayName = showNewBatsman ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
-  const bowlerDisplayName = showBowlerSelect ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
+  // When currentBatsmen[0] or currentBowler is empty, show "Selecting..." state
+  const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
+  const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
   const firstInnings = currentMatch.innings[0];
   const target = currentMatch.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
@@ -1150,12 +1138,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
-        // Show modal but don't update yet - wait for batsman selection
-        setShowNewBatsman(true);
-        // Store the match state temporarily
-        setPendingBatsmanId(null);
-        // Update the match without the new batsman yet
+        // Clear current batsman so UI shows "Selecting..."
+        inn.currentBatsmen[0] = '';
+        // Update local state immediately
+        setCurrentMatch(newMatch);
+        // Update parent
         onUpdate(newMatch);
+        // Show modal for new batsman selection
+        setShowNewBatsman(true);
       }
       return; // Don't call onUpdate again below
     }
@@ -1172,9 +1162,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
-        // Show modal but don't update yet - wait for bowler selection
-        setShowBowlerSelect(true);
+        // Clear current bowler so UI shows "Selecting..."
+        inn.currentBowler = '';
+        // Update local state immediately
+        setCurrentMatch(newMatch);
+        // Update parent
         onUpdate(newMatch);
+        // Show modal for new bowler selection
+        setShowBowlerSelect(true);
       }
       return; // Don't call onUpdate again below
     }
@@ -1188,9 +1183,15 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const handleInningsEnd = (newMatch: Match) => {
+    console.log('🏁 Innings ended, current innings:', newMatch.currentInnings);
+    
     if (newMatch.currentInnings === 0) {
+      console.log('✅ 1st innings completed, showing innings break');
       setInningBreak(true);
+      setCurrentMatch(newMatch);
+      onUpdate(newMatch);
     } else {
+      console.log('✅ 2nd innings completed, match finished');
       const inn1 = newMatch.innings[0];
       const inn2 = newMatch.innings[1];
       let result = '';
@@ -1206,6 +1207,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         result = 'Match Tied!';
       }
       
+      console.log('🏆 Match result:', result);
       newMatch.status = 'completed';
       newMatch.result = result;
       
@@ -1214,6 +1216,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
       
       setShowMatchComplete(true);
+      setCurrentMatch(newMatch);
+      onUpdate(newMatch);
     }
   };
 
@@ -1253,6 +1257,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     newMatch.innings.push(innings2);
     newMatch.currentInnings = 1;
     setInningBreak(false);
+    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
@@ -1272,7 +1277,10 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowNewBatsman(false);
     
-    // Force update
+    // ✅ Update local state immediately
+    setCurrentMatch(newMatch);
+    
+    // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new batsman');
   };
@@ -1293,7 +1301,10 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowBowlerSelect(false);
     
-    // Force update
+    // ✅ Update local state immediately
+    setCurrentMatch(newMatch);
+    
+    // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new bowler');
   };
@@ -1339,17 +1350,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.wickets -= 1;
     }
 
+    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
   // Match Complete Screen
-  if (showMatchComplete || match.status === 'completed') {
-    return <MatchSummaryScreen match={match} onBack={onBack} />;
+  if (showMatchComplete || currentMatch.status === 'completed') {
+    return <MatchSummaryScreen match={currentMatch} onBack={onBack} />;
   }
 
   // Innings break screen
   if (inningBreak) {
-    const firstInn = match.innings[0];
+    const firstInn = currentMatch.innings[0];
     if (!firstInn) {
       return (
         <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
@@ -1410,18 +1422,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Batsmen Cards */}
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${showNewBatsman ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
+        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${!strikerId ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
           <div className="flex items-center gap-1 mb-1">
             <span className="text-green-400 text-xs">🏏</span>
             <span className="text-xs text-green-300 font-bold">STRIKER</span>
-            {showNewBatsman && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
-            {striker?.isOut && !showNewBatsman && <span className="text-xs text-red-400 ml-auto">OUT</span>}
+            {!strikerId && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
+            {striker?.isOut && strikerId && <span className="text-xs text-red-400 ml-auto">OUT</span>}
           </div>
           <p className="font-bold text-sm truncate">{strikerDisplayName}</p>
-          {!showNewBatsman && (
+          {strikerId && (
             <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
           )}
-          {!showNewBatsman && (
+          {strikerId && (
             <div className="flex gap-2 text-xs text-gray-400 mt-1">
               <span>4s: {striker?.fours || 0}</span>
               <span>6s: {striker?.sixes || 0}</span>
@@ -1444,13 +1456,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Bowler Card */}
       <div className="px-4 mb-3">
-        <div className={`bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-3 border ${showBowlerSelect ? 'border-yellow-600/50 animate-pulse' : 'border-purple-700/30'}`}>
+        <div className={`bg-gradient-to-br from-purple-900/50 to-purple-800/30 rounded-xl p-3 border ${!innings.currentBowler ? 'border-yellow-600/50 animate-pulse' : 'border-purple-700/30'}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-purple-300">⚾ BOWLER {showBowlerSelect && <span className="text-yellow-400">- NEW OVER</span>}</p>
+              <p className="text-xs text-purple-300">⚾ BOWLER {!innings.currentBowler && <span className="text-yellow-400">- NEW OVER</span>}</p>
               <p className="font-bold text-sm">{bowlerDisplayName}</p>
             </div>
-            {!showBowlerSelect && (
+            {innings.currentBowler && (
               <div className="text-right">
                 <p className="text-lg font-bold text-purple-400">{currentBowler?.overs || 0}.{currentBowler?.balls || 0}-{currentBowler?.maidens || 0}-{currentBowler?.runs || 0}-{currentBowler?.wickets || 0}</p>
               </div>
@@ -1685,7 +1697,7 @@ function CreateLeagueScreen({ user, onBack }: { user: User; onBack: () => void }
       id: `lt_${Date.now()}_${Math.random()}`,
       name,
       players,
-      played: 0, won: 0, lost: 0, points: 0, nrr: 0,
+      played: 0, won: 0, lost: 0, tied: 0, points: 0, nrr: 0,
       runsScored: 0, runsConceded: 0, oversPlayed: 0, oversBowled: 0
     }]);
   };
@@ -1950,6 +1962,10 @@ async function updateLeagueStandings(match: Match) {
         t.points += 2;
       } else if (winnerId) {
         t.lost += 1;
+      } else {
+        // ✅ Match tied - both teams get 1 point
+        t.tied += 1;
+        t.points += 1;
       }
 
       if (t.oversBowled > 0 && t.oversPlayed > 0) {
