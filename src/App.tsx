@@ -464,27 +464,57 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
   const inn2 = match.innings?.[1];
   const score2 = inn2 ? `${inn2.runs}/${inn2.wickets} (${inn2.overs}.${inn2.balls})` : 'Yet to bat';
 
+  // Determine winning team for blue color
+  const getWinningTeam = () => {
+    if (!match.result) return null;
+    if (match.result.includes('won by')) {
+      if (match.result.includes(match.team1.name + ' won')) return match.team1.name;
+      if (match.result.includes(match.team2.name + ' won')) return match.team2.name;
+    }
+    return null;
+  };
+
+  const winningTeam = getWinningTeam();
+
+  const formatResult = () => {
+    if (!match.result) return null;
+    if (winningTeam) {
+      const parts = match.result.split(' won by');
+      return (
+        <>
+          <span className="text-blue-400 font-bold">{winningTeam}</span>
+          <span className="text-yellow-300"> won by{parts[1]}</span>
+        </>
+      );
+    }
+    return <span className="text-yellow-300">{match.result}</span>;
+  };
+
   return (
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-green-500/50 transition-all cursor-pointer" onClick={onClick}>
       <div className="flex justify-between items-start">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <span className={`px-2 py-0.5 rounded text-xs font-bold ${match.status === 'live' ? 'bg-red-500 animate-pulse' : match.status === 'completed' ? 'bg-gray-600' : 'bg-blue-500'}`}>
-              {match.status === 'live' ? '● LIVE' : match.status === 'completed' ? 'COMPLETED' : 'UPCOMING'}
+            <span className={`px-2 py-0.5 rounded text-xs font-bold ${match.status === 'live' ? 'bg-red-500 animate-pulse' : match.status === 'completed' ? 'bg-yellow-600' : 'bg-blue-500'}`}>
+              {match.status === 'live' ? '● LIVE' : match.status === 'completed' ? '🏆 COMPLETE' : 'UPCOMING'}
             </span>
             <span className="text-xs text-gray-400">{match.venue}</span>
           </div>
           <div className="space-y-1">
             <div className="flex justify-between">
-              <span className="font-medium">{match.team1.name}</span>
+              <span className={`font-medium ${winningTeam === match.team1.name ? 'text-blue-400' : ''}`}>{match.team1.name}</span>
               <span className="text-green-400 font-mono">{score1}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-medium">{match.team2.name}</span>
+              <span className={`font-medium ${winningTeam === match.team2.name ? 'text-blue-400' : ''}`}>{match.team2.name}</span>
               <span className="text-green-400 font-mono">{score2}</span>
             </div>
           </div>
-          {match.result && <p className="text-yellow-400 text-xs mt-2">{match.result}</p>}
+          {match.result && (
+            <p className="text-xs mt-2 bg-yellow-900/30 px-2 py-1 rounded border border-yellow-700/30">
+              {formatResult()}
+            </p>
+          )}
         </div>
         <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-red-400 hover:text-red-300 p-1 ml-2" title="Delete match">
           🗑️
@@ -1205,9 +1235,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
+  
+  // ✅ CRITICAL FIX: Use local state for match data to ensure immediate updates
+  const [currentMatch, setCurrentMatch] = useState<Match>(match);
+  
+  // Update local state when match prop changes
+  useEffect(() => {
+    setCurrentMatch(match);
+  }, [match]);
 
-  // ✅ Use match prop directly - parent is source of truth
-  const innings = match.innings?.[match.currentInnings];
+  // ✅ Use local state
+  const innings = currentMatch.innings?.[currentMatch.currentInnings];
   
   if (!innings) {
     return (
@@ -1221,8 +1259,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
-  const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
+  const battingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team1 : currentMatch.team2;
+  const bowlingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team2 : currentMatch.team1;
   
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
@@ -1235,18 +1273,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
   const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
-  const firstInnings = match.innings[0];
-  const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
+  const firstInnings = currentMatch.innings[0];
+  const target = currentMatch.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
   const remaining = target !== null ? target - innings.runs : null;
-  const ballsRemaining = (match.totalOvers * 6) - (innings.overs * 6 + innings.balls);
+  const ballsRemaining = (currentMatch.totalOvers * 6) - (innings.overs * 6 + innings.balls);
   const totalBallsBowled = innings.overs + innings.balls / 6;
   const runRate = totalBallsBowled > 0 ? (innings.runs / totalBallsBowled).toFixed(2) : '0.00';
   const reqRunRate = remaining !== null && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
 
-  const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
+  const getTeamName = (teamId: string) => teamId === currentMatch.team1.id ? currentMatch.team1.name : currentMatch.team2.name;
 
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) return;
     
@@ -1311,6 +1349,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (inn.wickets >= 10) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
+        setCurrentMatch(newMatch);
         onUpdate(newMatch);
       } else {
         // Check if this is the last ball of the over
@@ -1329,6 +1368,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           setNewBatsmanPosition('nonStriker');
         }
         
+        // ✅ CRITICAL: Update local state immediately
+        setCurrentMatch(newMatch);
         // Update parent immediately
         onUpdate(newMatch);
         // Show modal for new batsman selection
@@ -1344,13 +1385,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // End of over - rotate strike and select new bowler
     if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-      if (inn.overs >= match.totalOvers) {
+      if (inn.overs >= currentMatch.totalOvers) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
+        setCurrentMatch(newMatch);
         onUpdate(newMatch);
       } else {
         // Clear current bowler so UI shows "Selecting..."
         inn.currentBowler = '';
+        // ✅ CRITICAL: Update local state immediately
+        setCurrentMatch(newMatch);
         // Update parent immediately
         onUpdate(newMatch);
         // Show modal for new bowler selection
@@ -1364,6 +1408,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       handleInningsEnd(newMatch);
     }
 
+    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
@@ -1373,6 +1418,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     if (newMatch.currentInnings === 0) {
       console.log('✅ 1st innings completed, showing innings break');
       setInningBreak(true);
+      setCurrentMatch(newMatch);
       onUpdate(newMatch);
     } else {
       console.log('✅ 2nd innings completed, match finished');
@@ -1400,12 +1446,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
       
       setShowMatchComplete(true);
+      setCurrentMatch(newMatch);
       onUpdate(newMatch);
     }
   };
 
   const startSecondInnings = () => {
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const firstInnings = newMatch.innings[0];
     if (!firstInnings) return;
     const secondBattingTeamId = firstInnings.bowlingTeamId;
@@ -1441,12 +1488,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     newMatch.currentInnings = 1;
     setInningBreak(false);
     setShow2ndInningsSelection(true); // Show selection screen
+    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
   const selectNewBatsman = (playerId: string) => {
     console.log('🔄 Selecting new batsman:', playerId, 'Position:', newBatsmanPosition);
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
       console.error('❌ Innings not found');
@@ -1465,6 +1513,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowNewBatsman(false);
     
+    // ✅ CRITICAL: Update local state immediately
+    setCurrentMatch(newMatch);
+    
     // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new batsman');
@@ -1472,7 +1523,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const selectBowler = (playerId: string) => {
     console.log('🔄 Selecting new bowler:', playerId);
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
       console.error('❌ Innings not found');
@@ -1486,13 +1537,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowBowlerSelect(false);
     
+    // ✅ CRITICAL: Update local state immediately
+    setCurrentMatch(newMatch);
+    
     // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new bowler');
   };
 
   const handleUndo = () => {
-    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn || !inn.ballEvents || inn.ballEvents.length === 0) return;
     
@@ -1532,6 +1586,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.wickets -= 1;
     }
 
+    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
@@ -1909,18 +1964,54 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
     window.open(facebookShareUrl, '_blank');
   };
 
+  const handleDownload = async () => {
+    try {
+      const { exportMatchToPDF } = await import('./exportImport');
+      await exportMatchToPDF(match);
+      alert('✅ Match summary downloaded to your phone!');
+    } catch (err: any) {
+      alert('❌ Failed to download: ' + err.message);
+    }
+  };
+
+  // Determine winning team name for blue color
+  const getWinningTeamName = () => {
+    if (!match.result) return null;
+    if (match.result.includes('won by')) {
+      const matchResult = match.result;
+      if (matchResult.includes(match.team1.name + ' won')) return match.team1.name;
+      if (matchResult.includes(match.team2.name + ' won')) return match.team2.name;
+    }
+    return null;
+  };
+
+  const winningTeam = getWinningTeamName();
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="bg-gradient-to-r from-green-800 to-emerald-900 px-4 py-4 flex items-center justify-between">
         <button onClick={onBack} className="text-white text-xl">←</button>
         <h1 className="font-bold">Match Summary</h1>
-        <button onClick={handleShare} className="bg-blue-600 px-3 py-1 rounded text-xs">📤 Share</button>
+        <div className="flex gap-2">
+          <button onClick={handleShare} className="bg-blue-600 px-3 py-1 rounded text-xs">📤 Share</button>
+          <button onClick={handleDownload} className="bg-purple-600 px-3 py-1 rounded text-xs">📥 Download</button>
+        </div>
       </div>
 
       <div className="p-4 space-y-4">
         {match.result && (
-          <div className="bg-gradient-to-r from-yellow-900/50 to-yellow-800/30 rounded-xl p-4 border border-yellow-700/30 text-center">
-            <p className="text-yellow-400 font-bold text-lg">{match.result}</p>
+          <div className="bg-gradient-to-r from-yellow-900/50 to-yellow-800/30 rounded-xl p-4 border-2 border-yellow-500/50 text-center">
+            <p className="text-yellow-300 font-bold text-xl mb-2">🏆 COMPLETE</p>
+            <p className="text-lg">
+              {winningTeam ? (
+                <>
+                  <span className="text-blue-400 font-bold">{winningTeam}</span>
+                  <span className="text-yellow-300"> {match.result.replace(winningTeam + ' ', '').replace('won by', 'won by')}</span>
+                </>
+              ) : (
+                <span className="text-yellow-300">{match.result}</span>
+              )}
+            </p>
           </div>
         )}
 
