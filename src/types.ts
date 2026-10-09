@@ -109,6 +109,7 @@ export interface LeagueTeam {
   played: number;
   won: number;
   lost: number;
+  tied: number;
   points: number;
   nrr: number;
   runsScored: number;
