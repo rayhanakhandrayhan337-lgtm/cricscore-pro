@@ -1293,6 +1293,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const battingTeam = innings.battingTeamId === match.team1.id ? match.team1 : match.team2;
   const bowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team2 : match.team1;
   
+  console.log('🏏 Innings:', match.currentInnings + 1);
+  console.log('🏏 Batting team ID:', innings.battingTeamId);
+  console.log('🏏 Bowling team ID:', innings.bowlingTeamId);
+  console.log('🏏 Batting team name:', battingTeam.name);
+  console.log('🏏 Bowling team name:', bowlingTeam.name);
+  console.log('🏏 Bowling team players:', bowlingTeam.players.map(p => p.name));
+  
   const strikerId = innings.currentBatsmen?.[0];
   const nonStrikerId = innings.currentBatsmen?.[1];
   const striker = strikerId ? innings.batsmenStats?.[strikerId] : null;
@@ -1911,13 +1918,20 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Bowler Selection Modal */}
       {showBowlerSelect && (() => {
+        // ✅ FIX: Recalculate bowling team inside modal to ensure correct team
+        const modalBowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team2 : match.team1;
+        
+        console.log('🎯 Modal - Bowling team ID:', innings.bowlingTeamId);
+        console.log('🎯 Modal - Bowling team name:', modalBowlingTeam.name);
+        console.log('🎯 Modal - Bowling team players:', modalBowlingTeam.players.map(p => p.name));
+        
         // ✅ FIX: Find last over's bowler to enforce 1 over gap rule
         const lastOverBowlerId = innings.ballEvents
           .filter(e => e.over === innings.overs - 1)
           .map(e => e.bowlerId)[0] || '';
         
         // ✅ Get available bowlers (excluding current and last over's bowler)
-        const availableBowlers = bowlingTeam.players.filter(p => {
+        const availableBowlers = modalBowlingTeam.players.filter(p => {
           // Exclude current bowler (if any)
           if (innings.currentBowler && p.id === innings.currentBowler) return false;
           // Exclude last over's bowler (1 over gap rule)
