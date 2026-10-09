@@ -450,7 +450,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
             className={`flex-1 py-3 flex flex-col items-center gap-1.5 transition-all relative ${
               tab === i 
                 ? 'text-white' 
-                : 'text-blue-400 hover:text-blue-300'
+                : 'text-red-700 hover:text-red-500'
             }`}
           >
             {tab === i && (
@@ -459,7 +459,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
             <div className={`p-2 rounded-xl transition-all ${
               tab === i 
                 ? 'bg-white/10 shadow-lg' 
-                : 'bg-blue-500/10'
+                : 'bg-red-500/10'
             }`}>
               {i === 0 && (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1947,104 +1947,109 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         </div>
       </div>
 
-      {/* Batsmen Cards - Compact */}
-      <div className="px-3 py-2 flex-shrink-0">
+      {/* Batsmen Cards - Ultra Compact */}
+      <div className="px-3 py-1.5 flex-shrink-0">
         <div className="grid grid-cols-2 gap-2">
-          <div className={`bg-gradient-to-br from-green-900/60 to-green-800/40 rounded-xl p-2 border-2 shadow-lg ${!strikerId ? 'border-yellow-500/70 animate-pulse' : striker?.isOut ? 'border-red-700/50 opacity-60' : 'border-green-600/50'}`}>
-            <div className="flex items-center gap-1 mb-1">
-              <div className="bg-green-500/30 p-1 rounded">
-                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Striker Card */}
+          <div className={`bg-gradient-to-br from-green-900/60 to-green-800/40 rounded-lg p-1.5 border-2 shadow-lg ${!strikerId ? 'border-yellow-500/70 animate-pulse' : striker?.isOut ? 'border-red-700/50 opacity-60' : 'border-green-600/50'}`}>
+            <div className="flex items-center gap-1 mb-0.5">
+              <div className="bg-green-500/30 p-0.5 rounded">
+                <svg className="w-2.5 h-2.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <span className="text-[10px] text-green-300 font-bold">STRIKER</span>
-              {!strikerId && <span className="text-[10px] text-yellow-400 ml-auto font-bold">NEW</span>}
-              {striker?.isOut && strikerId && <span className="text-[10px] text-red-400 ml-auto font-bold">OUT</span>}
+              <span className="text-[9px] text-green-300 font-bold">STRIKER</span>
+              {!strikerId && <span className="text-[9px] text-yellow-400 ml-auto font-bold">NEW</span>}
+              {striker?.isOut && strikerId && <span className="text-[9px] text-red-400 ml-auto font-bold">OUT</span>}
             </div>
-            <p className="font-bold text-xs truncate mb-1">{strikerDisplayName}</p>
+            <p className="font-bold text-[11px] truncate mb-0.5">{strikerDisplayName}</p>
             {strikerId && (
               <>
-                <p className="text-xl font-black bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                <p className="text-base font-black bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
                   {striker?.runs || 0} 
-                  <span className="text-xs text-gray-400 font-normal ml-1">({striker?.balls || 0})</span>
+                  <span className="text-[10px] text-gray-400 font-normal ml-0.5">({striker?.balls || 0})</span>
                 </p>
-                <div className="flex gap-2 text-[10px] text-gray-300 mt-1">
-                  <div className="bg-blue-500/20 px-1.5 py-0.5 rounded">
+                <div className="flex gap-1 text-[9px] text-gray-300 mt-0.5">
+                  <div className="bg-blue-500/20 px-1 py-0.5 rounded">
                     <span className="font-bold text-blue-400">4s:</span> {striker?.fours || 0}
                   </div>
-                  <div className="bg-purple-500/20 px-1.5 py-0.5 rounded">
+                  <div className="bg-purple-500/20 px-1 py-0.5 rounded">
                     <span className="font-bold text-purple-400">6s:</span> {striker?.sixes || 0}
                   </div>
                 </div>
               </>
             )}
           </div>
-          <div className="bg-gradient-to-br from-blue-900/60 to-blue-800/40 rounded-xl p-2 border-2 border-blue-600/50 shadow-lg">
-            <div className="flex items-center gap-1 mb-1">
-              <div className="bg-blue-500/30 p-1 rounded">
-                <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          
+          {/* Non-Striker Card with Swap Icon */}
+          <div className="bg-gradient-to-br from-blue-900/60 to-blue-800/40 rounded-lg p-1.5 border-2 border-blue-600/50 shadow-lg relative">
+            {/* Swap Icon - Top Right */}
+            {strikerId && nonStrikerId && (
+              <button
+                onClick={() => {
+                  const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+                  const inn = newMatch.innings[newMatch.currentInnings];
+                  if (inn) {
+                    inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
+                    onUpdate(newMatch);
+                  }
+                }}
+                className="absolute top-1 right-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 p-1 rounded-full shadow-lg transition-all transform hover:scale-110 active:scale-95"
+                title="Swap Batsmen"
+              >
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </button>
+            )}
+            
+            <div className="flex items-center gap-1 mb-0.5">
+              <div className="bg-blue-500/30 p-0.5 rounded">
+                <svg className="w-2.5 h-2.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <span className="text-[10px] text-blue-300 font-bold">NON-STRIKER</span>
+              <span className="text-[9px] text-blue-300 font-bold">NON-STRIKER</span>
             </div>
-            <p className="font-bold text-xs truncate mb-1">{nonStriker?.playerName || 'No batsman'}</p>
-            <p className="text-xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent">
+            <p className="font-bold text-[11px] truncate mb-0.5 pr-5">{nonStriker?.playerName || 'No batsman'}</p>
+            <p className="text-base font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent">
               {nonStriker?.runs || 0} 
-              <span className="text-xs text-gray-400 font-normal ml-1">({nonStriker?.balls || 0})</span>
+              <span className="text-[10px] text-gray-400 font-normal ml-0.5">({nonStriker?.balls || 0})</span>
             </p>
-            <div className="flex gap-2 text-[10px] text-gray-300 mt-1">
-              <div className="bg-blue-500/20 px-1.5 py-0.5 rounded">
+            <div className="flex gap-1 text-[9px] text-gray-300 mt-0.5">
+              <div className="bg-blue-500/20 px-1 py-0.5 rounded">
                 <span className="font-bold text-blue-400">4s:</span> {nonStriker?.fours || 0}
               </div>
-              <div className="bg-purple-500/20 px-1.5 py-0.5 rounded">
+              <div className="bg-purple-500/20 px-1 py-0.5 rounded">
                 <span className="font-bold text-purple-400">6s:</span> {nonStriker?.sixes || 0}
               </div>
             </div>
           </div>
         </div>
-        
-        {/* Swap Batsmen Button */}
-        {strikerId && nonStrikerId && (
-          <button
-            onClick={() => {
-              const newMatch = JSON.parse(JSON.stringify(match)) as Match;
-              const inn = newMatch.innings[newMatch.currentInnings];
-              if (inn) {
-                inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-                onUpdate(newMatch);
-              }
-            }}
-            className="w-full mt-2 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition-all"
-          >
-            <span>🔄</span>
-            <span>Swap Batsmen</span>
-          </button>
-        )}
       </div>
 
-      {/* Bowler Card - Compact */}
+      {/* Bowler Card - Compact with Per Ball Stats */}
       <div className="px-3 mb-2 flex-shrink-0">
         <div className={`bg-gradient-to-br from-purple-900/60 to-purple-800/40 rounded-xl p-2 border-2 shadow-lg ${!innings.currentBowler ? 'border-yellow-500/70 animate-pulse' : 'border-purple-600/50'}`}>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-1">
             <div className="flex-1">
-              <div className="flex items-center gap-1 mb-1">
-                <div className="bg-purple-500/30 p-1 rounded">
-                  <svg className="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center gap-1 mb-0.5">
+                <div className="bg-purple-500/30 p-0.5 rounded">
+                  <svg className="w-2.5 h-2.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <span className="text-[10px] text-purple-300 font-bold">BOWLER</span>
-                {!innings.currentBowler && <span className="text-[10px] text-yellow-400 font-bold ml-1">NEW OVER</span>}
+                <span className="text-[9px] text-purple-300 font-bold">BOWLER</span>
+                {!innings.currentBowler && <span className="text-[9px] text-yellow-400 font-bold ml-1">NEW OVER</span>}
               </div>
-              <p className="font-bold text-xs">{bowlerDisplayName}</p>
+              <p className="font-bold text-[11px]">{bowlerDisplayName}</p>
             </div>
             {innings.currentBowler && (
               <div className="text-right bg-purple-500/20 rounded-lg px-2 py-1">
-                <p className="text-lg font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                <p className="text-base font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
                   {currentBowler?.overs || 0}.{currentBowler?.balls || 0}
                 </p>
-                <div className="flex gap-1 text-[10px] text-gray-300">
+                <div className="flex gap-1 text-[9px] text-gray-300">
                   <span className="font-bold">{currentBowler?.maidens || 0}M</span>
                   <span className="font-bold">{currentBowler?.runs || 0}R</span>
                   <span className="font-bold text-red-400">{currentBowler?.wickets || 0}W</span>
@@ -2052,46 +2057,99 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
               </div>
             )}
           </div>
+          
+          {/* Per Over Per Ball Stats */}
+          {innings.currentBowler && currentBowler && (
+            <div className="bg-black/30 rounded-lg p-1.5 mt-1">
+              <div className="grid grid-cols-3 gap-1 text-center">
+                <div>
+                  <p className="text-[8px] text-gray-400 uppercase">Economy</p>
+                  <p className="text-xs font-bold text-cyan-400">
+                    {(currentBowler.overs + currentBowler.balls / 6) > 0 
+                      ? (currentBowler.runs / (currentBowler.overs + currentBowler.balls / 6)).toFixed(2)
+                      : '0.00'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[8px] text-gray-400 uppercase">Per Ball</p>
+                  <p className="text-xs font-bold text-yellow-400">
+                    {(currentBowler.overs * 6 + currentBowler.balls) > 0
+                      ? (currentBowler.runs / (currentBowler.overs * 6 + currentBowler.balls)).toFixed(2)
+                      : '0.00'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[8px] text-gray-400 uppercase">Extras</p>
+                  <p className="text-xs font-bold text-orange-400">
+                    {currentBowler.extras || 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Scoring Buttons - Compact */}
+      {/* Scoring Buttons - Ultra Compact */}
       <div className="px-3 flex-1 flex flex-col justify-center">
-        <div className="grid grid-cols-4 gap-1.5 mb-2">
+        <div className="grid grid-cols-4 gap-1 mb-1.5">
           {[0, 1, 2, 3].map(r => (
             <button key={r} onClick={() => processBall(r, false, false, false)}
-              className="bg-gradient-to-b from-gray-700 to-gray-800 py-3 rounded-lg font-bold text-lg hover:from-gray-600 hover:to-gray-700 active:scale-95 transition-all border border-gray-600">
+              className="bg-gradient-to-b from-gray-700 to-gray-800 py-2 rounded-lg font-bold text-base hover:from-gray-600 hover:to-gray-700 active:scale-95 transition-all border border-gray-600 shadow-md">
               {r}
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-1.5 mb-2">
+        <div className="grid grid-cols-3 gap-1 mb-1.5">
           <button onClick={() => processBall(4, false, false, false)}
-            className="bg-gradient-to-b from-blue-600 to-blue-800 py-3 rounded-lg font-bold text-lg hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/50">
+            className="bg-gradient-to-b from-blue-600 to-blue-800 py-2 rounded-lg font-bold text-base hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/50">
             4
           </button>
           <button onClick={() => processBall(6, false, false, false)}
-            className="bg-gradient-to-b from-green-600 to-green-800 py-3 rounded-lg font-bold text-lg hover:from-green-500 hover:to-green-700 active:scale-95 transition-all shadow-lg shadow-green-900/50">
+            className="bg-gradient-to-b from-green-600 to-green-800 py-2 rounded-lg font-bold text-base hover:from-green-500 hover:to-green-700 active:scale-95 transition-all shadow-lg shadow-green-900/50">
             6
           </button>
           <button onClick={() => processBall(1, true, false, false)}
-            className="bg-gradient-to-b from-yellow-600 to-yellow-800 py-3 rounded-lg font-bold text-xs hover:from-yellow-500 hover:to-yellow-700 active:scale-95 transition-all">
+            className="bg-gradient-to-b from-yellow-600 to-yellow-800 py-2 rounded-lg font-bold text-[10px] hover:from-yellow-500 hover:to-yellow-700 active:scale-95 transition-all shadow-md">
             Wide
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-1 mb-1.5">
           <button onClick={() => processBall(1, false, true, false)}
-            className="bg-gradient-to-b from-orange-600 to-orange-800 py-3 rounded-lg font-bold text-xs hover:from-orange-500 hover:to-orange-700 active:scale-95 transition-all">
+            className="bg-gradient-to-b from-orange-600 to-orange-800 py-2 rounded-lg font-bold text-[10px] hover:from-orange-500 hover:to-orange-700 active:scale-95 transition-all shadow-md">
             No Ball
           </button>
           <button onClick={() => processBall(0, false, false, true, 'bowled')}
-            className="bg-gradient-to-b from-red-600 to-red-800 py-3 rounded-lg font-bold text-xs hover:from-red-500 hover:to-red-700 active:scale-95 transition-all shadow-lg shadow-red-900/50">
+            className="bg-gradient-to-b from-red-600 to-red-800 py-2 rounded-lg font-bold text-[10px] hover:from-red-500 hover:to-red-700 active:scale-95 transition-all shadow-lg shadow-red-900/50">
             Wicket
           </button>
           <button onClick={() => processBall(0, false, false, false)}
-            className="bg-gradient-to-b from-gray-600 to-gray-800 py-3 rounded-lg font-bold text-xs hover:from-gray-500 hover:to-gray-700 active:scale-95 transition-all">
+            className="bg-gradient-to-b from-gray-600 to-gray-800 py-2 rounded-lg font-bold text-[10px] hover:from-gray-500 hover:to-gray-700 active:scale-95 transition-all shadow-md">
             Dot
           </button>
+        </div>
+        
+        {/* Recent Balls - Modern Design */}
+        <div className="bg-black/30 rounded-lg p-1.5">
+          <p className="text-[8px] text-gray-400 mb-1 uppercase font-bold">This Over</p>
+          <div className="flex gap-1 flex-wrap">
+            {(innings.ballEvents || [])
+              .filter(e => e.over === innings.overs && (innings.balls > 0 ? e.over === innings.overs : e.over === innings.overs - 1))
+              .slice(-12)
+              .map((e, i) => (
+                <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shadow-md ${
+                  e.isWicket ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 
+                  (e.runs || 0) === 4 ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white' : 
+                  (e.runs || 0) === 6 ? 'bg-gradient-to-br from-green-500 to-green-700 text-white' : 
+                  e.isWide ? 'bg-gradient-to-br from-yellow-500 to-yellow-700 text-white' : 
+                  e.isNoBall ? 'bg-gradient-to-br from-orange-500 to-orange-700 text-white' : 
+                  (e.runs || 0) === 0 ? 'bg-gradient-to-br from-gray-600 to-gray-800 text-gray-300' : 
+                  'bg-gradient-to-br from-gray-500 to-gray-700 text-white'
+                }`}>
+                  {e.isWicket ? 'W' : e.isWide ? 'Wd' : e.isNoBall ? 'Nb' : (e.runs ?? 0)}
+                </div>
+              ))}
+          </div>
         </div>
       </div>
 
