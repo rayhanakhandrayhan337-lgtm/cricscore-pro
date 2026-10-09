@@ -1274,16 +1274,22 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
   const [pendingBowlerSelect, setPendingBowlerSelect] = useState(false);
   
-  // ✅ CRITICAL FIX: Use ref as the single source of truth
+  // ✅ CRITICAL FIX: Use both state (for re-renders) and ref (for sync access)
+  const [currentMatch, setCurrentMatch] = useState<Match>(match);
   const matchRef = useRef<Match>(match);
   
-  // ✅ Only update ref when parent prop changes (not during our own updates)
+  // ✅ Only sync from parent when match prop actually changes
   useEffect(() => {
-    matchRef.current = match;
+    // Only update if parent sent a different match (not our own updates)
+    if (match.id !== matchRef.current.id || 
+        JSON.stringify(match) !== JSON.stringify(matchRef.current)) {
+      matchRef.current = match;
+      setCurrentMatch(match);
+    }
   }, [match]);
 
-  // ✅ Use ref directly - no state needed
-  const innings = matchRef.current.innings?.[matchRef.current.currentInnings];
+  // ✅ Use state for rendering
+  const innings = currentMatch.innings?.[currentMatch.currentInnings];
   
   if (!innings) {
     return (
@@ -1297,8 +1303,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  const battingTeam = matchRef.current.battingFirst === matchRef.current.team1.id ? matchRef.current.team1 : matchRef.current.team2;
-  const bowlingTeam = matchRef.current.battingFirst === matchRef.current.team1.id ? matchRef.current.team2 : matchRef.current.team1;
+  const battingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team1 : currentMatch.team2;
+  const bowlingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team2 : currentMatch.team1;
   
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
@@ -1311,18 +1317,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
   const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
-  const firstInnings = matchRef.current.innings[0];
-  const target = matchRef.current.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
+  const firstInnings = currentMatch.innings[0];
+  const target = currentMatch.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
   const remaining = target !== null ? target - innings.runs : null;
-  const ballsRemaining = (matchRef.current.totalOvers * 6) - (innings.overs * 6 + innings.balls);
+  const ballsRemaining = (currentMatch.totalOvers * 6) - (innings.overs * 6 + innings.balls);
   const totalBallsBowled = innings.overs + innings.balls / 6;
   const runRate = totalBallsBowled > 0 ? (innings.runs / totalBallsBowled).toFixed(2) : '0.00';
   const reqRunRate = remaining !== null && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
 
-  const getTeamName = (teamId: string) => teamId === matchRef.current.team1.id ? matchRef.current.team1.name : matchRef.current.team2.name;
+  const getTeamName = (teamId: string) => teamId === currentMatch.team1.id ? currentMatch.team1.name : currentMatch.team2.name;
 
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
-    const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) return;
     
@@ -1457,7 +1463,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const handleInningsEnd = (newMatch: Match) => {
     console.log('🏁 Innings ended, current innings:', newMatch.currentInnings);
     
-    // ✅ Update ref immediately
+    // ✅ Update both ref and state
     matchRef.current = newMatch;
     
     if (newMatch.currentInnings === 0) {
@@ -1497,7 +1503,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const startSecondInnings = () => {
-    const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const firstInnings = newMatch.innings[0];
     if (!firstInnings) return;
     const secondBattingTeamId = firstInnings.bowlingTeamId;
@@ -1534,7 +1540,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     setInningBreak(false);
     setShow2ndInningsSelection(true); // Show selection screen
     
-    // ✅ Update ref immediately
+    // ✅ Update both ref and state
     matchRef.current = newMatch;
     setCurrentMatch(newMatch);
     onUpdate(newMatch);
@@ -1543,8 +1549,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const selectNewBatsman = (playerId: string) => {
     console.log('🔄 Selecting new batsman:', playerId, 'Position:', newBatsmanPosition);
     
-    // ✅ Create fresh copy from ref (latest state)
-    const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+    // ✅ Create fresh copy from current state
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     
     if (!inn) {
@@ -1566,10 +1572,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // ✅ Close modal first
     setShowNewBatsman(false);
     
-    // ✅ CRITICAL: Update ref immediately for synchronous access
+    // ✅ CRITICAL: Update both ref and state immediately
     matchRef.current = newMatch;
-    
-    // ✅ Update local state
     setCurrentMatch(newMatch);
     
     // ✅ Update parent
@@ -1585,7 +1589,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
       inn.currentBowler = '';
       
-      // ✅ Update ref immediately
+      // ✅ Update both ref and state
       matchRef.current = newMatch;
       setCurrentMatch(newMatch);
       onUpdate(newMatch);
@@ -1598,8 +1602,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const selectBowler = (playerId: string) => {
     console.log('🔄 Selecting new bowler:', playerId);
     
-    // ✅ Create fresh copy from ref (latest state)
-    const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+    // ✅ Create fresh copy from current state
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     
     if (!inn) {
@@ -1614,10 +1618,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowBowlerSelect(false);
     
-    // ✅ CRITICAL: Update ref immediately for synchronous access
+    // ✅ CRITICAL: Update both ref and state immediately
     matchRef.current = newMatch;
-    
-    // ✅ Update local state
     setCurrentMatch(newMatch);
     
     // Update parent
@@ -1626,7 +1628,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const handleUndo = () => {
-    const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn || !inn.ballEvents || inn.ballEvents.length === 0) return;
     
@@ -1788,7 +1790,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
                 return;
               }
 
-              const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+              const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
               const inn = newMatch.innings[1];
               
               inn.currentBatsmen = [strikerId, nonStrikerId];
@@ -1796,7 +1798,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
               setShow2ndInningsSelection(false);
               
-              // ✅ Update ref immediately
+              // ✅ Update both ref and state
               matchRef.current = newMatch;
               setCurrentMatch(newMatch);
               onUpdate(newMatch);
@@ -1880,12 +1882,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         {strikerId && nonStrikerId && (
           <button
             onClick={() => {
-              const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
+              const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
               const inn = newMatch.innings[newMatch.currentInnings];
               if (inn) {
                 inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
                 
-                // ✅ Update ref immediately
+                // ✅ Update both ref and state
                 matchRef.current = newMatch;
                 setCurrentMatch(newMatch);
                 onUpdate(newMatch);
