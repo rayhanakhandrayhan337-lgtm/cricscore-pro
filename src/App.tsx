@@ -1291,9 +1291,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   // ✅ FIX: Use current innings to determine batting/bowling team
   const battingTeam = innings.battingTeamId === match.team1.id ? match.team1 : match.team2;
-  const bowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team2 : match.team1;
+  const bowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team1 : match.team2;
   
   console.log('🏏 Innings:', match.currentInnings + 1);
+  console.log('🏏 Team 1:', match.team1.name, '- ID:', match.team1.id);
+  console.log('🏏 Team 2:', match.team2.name, '- ID:', match.team2.id);
   console.log('🏏 Batting team ID:', innings.battingTeamId);
   console.log('🏏 Bowling team ID:', innings.bowlingTeamId);
   console.log('🏏 Batting team name:', battingTeam.name);
@@ -1493,7 +1495,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     const secondBowlingTeamId = firstInnings.battingTeamId;
     
     const secondBattingTeam = secondBattingTeamId === newMatch.team1.id ? newMatch.team1 : newMatch.team2;
-    const secondBowlingTeam = secondBattingTeamId === newMatch.team1.id ? newMatch.team2 : newMatch.team1;
+    const secondBowlingTeam = secondBowlingTeamId === newMatch.team1.id ? newMatch.team1 : newMatch.team2;
 
     const batsmenStats: Record<string, BatsmanStats> = {};
     const bowlersStats: Record<string, BowlerStats> = {};
@@ -1664,7 +1666,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   if (show2ndInningsSelection) {
     const secondInnings = match.innings[1];
     const secondBattingTeam = secondInnings?.battingTeamId === match.team1.id ? match.team1 : match.team2;
-    const secondBowlingTeam = secondInnings?.battingTeamId === match.team1.id ? match.team2 : match.team1;
+    const secondBowlingTeam = secondInnings?.bowlingTeamId === match.team1.id ? match.team1 : match.team2;
     
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
@@ -1918,9 +1920,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       {/* Bowler Selection Modal */}
       {showBowlerSelect && (() => {
-        // ✅ FIX: Recalculate bowling team inside modal to ensure correct team
-        const modalBowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team2 : match.team1;
+        // ✅ FIX: Recalculate bowling team inside modal with CORRECT logic
+        const modalBowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team1 : match.team2;
         
+        console.log('🎯 Modal - Team 1:', match.team1.name, '- ID:', match.team1.id);
+        console.log('🎯 Modal - Team 2:', match.team2.name, '- ID:', match.team2.id);
         console.log('🎯 Modal - Bowling team ID:', innings.bowlingTeamId);
         console.log('🎯 Modal - Bowling team name:', modalBowlingTeam.name);
         console.log('🎯 Modal - Bowling team players:', modalBowlingTeam.players.map(p => p.name));
