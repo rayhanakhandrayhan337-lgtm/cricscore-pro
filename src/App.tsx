@@ -490,6 +490,13 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
     return <span className="text-yellow-300">{match.result}</span>;
   };
 
+  // Determine losing team
+  const getLosingTeam = () => {
+    if (!winningTeam) return null;
+    return winningTeam === match.team1.name ? match.team2.name : match.team1.name;
+  };
+  const losingTeam = getLosingTeam();
+
   return (
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-green-500/50 transition-all cursor-pointer" onClick={onClick}>
       <div className="flex justify-between items-start">
@@ -498,15 +505,15 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
             <span className={`px-2 py-0.5 rounded text-xs font-bold ${match.status === 'live' ? 'bg-red-500 animate-pulse' : match.status === 'completed' ? 'bg-yellow-600' : 'bg-blue-500'}`}>
               {match.status === 'live' ? '● LIVE' : match.status === 'completed' ? '🏆 COMPLETE' : 'UPCOMING'}
             </span>
-            <span className="text-xs text-gray-400">{match.venue}</span>
+            <span className="text-xs text-blue-400 font-medium">🏟️ {match.venue}</span>
           </div>
           <div className="space-y-1">
             <div className="flex justify-between">
-              <span className={`font-medium ${winningTeam === match.team1.name ? 'text-blue-400' : ''}`}>{match.team1.name}</span>
+              <span className={`font-medium ${winningTeam === match.team1.name ? 'text-green-400 font-bold' : losingTeam === match.team1.name ? 'text-red-400' : ''}`}>{match.team1.name}</span>
               <span className="text-green-400 font-mono">{score1}</span>
             </div>
             <div className="flex justify-between">
-              <span className={`font-medium ${winningTeam === match.team2.name ? 'text-blue-400' : ''}`}>{match.team2.name}</span>
+              <span className={`font-medium ${winningTeam === match.team2.name ? 'text-green-400 font-bold' : losingTeam === match.team2.name ? 'text-red-400' : ''}`}>{match.team2.name}</span>
               <span className="text-green-400 font-mono">{score2}</span>
             </div>
           </div>
@@ -1235,6 +1242,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
+  const [pendingBowlerSelect, setPendingBowlerSelect] = useState(false);
   
   // ✅ CRITICAL FIX: Use local state for match data to ensure immediate updates
   const [currentMatch, setCurrentMatch] = useState<Match>(match);
@@ -1352,20 +1360,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         setCurrentMatch(newMatch);
         onUpdate(newMatch);
       } else {
-        // Check if this is the last ball of the over
-        const isLastBallOfOver = (inn.balls === 5); // 0-indexed, so 5 means 6th ball
+        // ✅ FIXED: New batsman always comes at striker position (where outgoing batsman was)
+        // No swap needed - just replace the outgoing batsman
+        inn.currentBatsmen[0] = '';
+        setNewBatsmanPosition('striker');
         
-        if (isLastBallOfOver) {
-          // Last ball of over - no strike rotation, new batsman will be striker
-          inn.currentBatsmen[0] = '';
-          setNewBatsmanPosition('striker');
-        } else {
-          // Not last ball - strike rotation will happen, new batsman will be non-striker
-          // Swap current batsmen first
-          inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-          // Now clear the new non-striker position (which was the striker)
-          inn.currentBatsmen[1] = '';
-          setNewBatsmanPosition('nonStriker');
+        // Check if this was the last ball of the over
+        const wasLastBall = (inn.balls === 0 && inn.overs > 0);
+        
+        if (wasLastBall) {
+          // Last ball - after new batsman is selected, will need to select new bowler
+          setPendingBowlerSelect(true);
         }
         
         // ✅ CRITICAL: Update local state immediately
@@ -1519,6 +1524,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new batsman');
+    
+    // ✅ If this was last ball of over, now show bowler selection
+    if (pendingBowlerSelect) {
+      setPendingBowlerSelect(false);
+      // Swap batsmen for new over
+      inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
+      inn.currentBowler = '';
+      setCurrentMatch(newMatch);
+      onUpdate(newMatch);
+      setShowBowlerSelect(true);
+    }
   };
 
   const selectBowler = (playerId: string) => {
@@ -1756,37 +1772,58 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       </div>
 
       {/* Batsmen Cards */}
-      <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${!strikerId ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
-          <div className="flex items-center gap-1 mb-1">
-            <span className="text-green-400 text-xs">🏏</span>
-            <span className="text-xs text-green-300 font-bold">STRIKER</span>
-            {!strikerId && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
-            {striker?.isOut && strikerId && <span className="text-xs text-red-400 ml-auto">OUT</span>}
-          </div>
-          <p className="font-bold text-sm truncate">{strikerDisplayName}</p>
-          {strikerId && (
-            <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
-          )}
-          {strikerId && (
-            <div className="flex gap-2 text-xs text-gray-400 mt-1">
-              <span>4s: {striker?.fours || 0}</span>
-              <span>6s: {striker?.sixes || 0}</span>
+      <div className="px-4 py-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className={`bg-gradient-to-br from-green-900/50 to-green-800/30 rounded-xl p-3 border ${!strikerId ? 'border-yellow-600/50 animate-pulse' : striker?.isOut ? 'border-red-700/30 opacity-60' : 'border-green-700/30'}`}>
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-green-400 text-xs">🏏</span>
+              <span className="text-xs text-green-300 font-bold">STRIKER</span>
+              {!strikerId && <span className="text-xs text-yellow-400 ml-auto">NEW</span>}
+              {striker?.isOut && strikerId && <span className="text-xs text-red-400 ml-auto">OUT</span>}
             </div>
-          )}
-        </div>
-        <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 rounded-xl p-3 border border-blue-700/30">
-          <div className="flex items-center gap-1 mb-1">
-            <span className="text-blue-400 text-xs">🏏</span>
-            <span className="text-xs text-blue-300">NON-STRIKER</span>
+            <p className="font-bold text-sm truncate">{strikerDisplayName}</p>
+            {strikerId && (
+              <p className="text-2xl font-bold text-green-400">{striker?.runs || 0} <span className="text-sm text-gray-400">({striker?.balls || 0})</span></p>
+            )}
+            {strikerId && (
+              <div className="flex gap-2 text-xs text-gray-400 mt-1">
+                <span>4s: {striker?.fours || 0}</span>
+                <span>6s: {striker?.sixes || 0}</span>
+              </div>
+            )}
           </div>
-          <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'No batsman'}</p>
-          <p className="text-2xl font-bold text-blue-400">{nonStriker?.runs || 0} <span className="text-sm text-gray-400">({nonStriker?.balls || 0})</span></p>
-          <div className="flex gap-2 text-xs text-gray-400 mt-1">
-            <span>4s: {nonStriker?.fours || 0}</span>
-            <span>6s: {nonStriker?.sixes || 0}</span>
+          <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 rounded-xl p-3 border border-blue-700/30">
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-blue-400 text-xs">🏏</span>
+              <span className="text-xs text-blue-300">NON-STRIKER</span>
+            </div>
+            <p className="font-bold text-sm truncate">{nonStriker?.playerName || 'No batsman'}</p>
+            <p className="text-2xl font-bold text-blue-400">{nonStriker?.runs || 0} <span className="text-sm text-gray-400">({nonStriker?.balls || 0})</span></p>
+            <div className="flex gap-2 text-xs text-gray-400 mt-1">
+              <span>4s: {nonStriker?.fours || 0}</span>
+              <span>6s: {nonStriker?.sixes || 0}</span>
+            </div>
           </div>
         </div>
+        
+        {/* Swap Batsmen Button */}
+        {strikerId && nonStrikerId && (
+          <button
+            onClick={() => {
+              const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
+              const inn = newMatch.innings[newMatch.currentInnings];
+              if (inn) {
+                inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
+                setCurrentMatch(newMatch);
+                onUpdate(newMatch);
+              }
+            }}
+            className="w-full mt-2 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition-all"
+          >
+            <span>🔄</span>
+            <span>Swap Batsmen</span>
+          </button>
+        )}
       </div>
 
       {/* Bowler Card */}
@@ -1993,8 +2030,20 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
         <button onClick={onBack} className="text-white text-xl">←</button>
         <h1 className="font-bold">Match Summary</h1>
         <div className="flex gap-2">
-          <button onClick={handleShare} className="bg-blue-600 px-3 py-1 rounded text-xs">📤 Share</button>
-          <button onClick={handleDownload} className="bg-purple-600 px-3 py-1 rounded text-xs">📥 Download</button>
+          <button 
+            onClick={handleShare} 
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all duration-200 flex items-center gap-1"
+          >
+            <span>📤</span>
+            <span>Share</span>
+          </button>
+          <button 
+            onClick={handleDownload} 
+            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all duration-200 flex items-center gap-1"
+          >
+            <span>📥</span>
+            <span>Download</span>
+          </button>
         </div>
       </div>
 
