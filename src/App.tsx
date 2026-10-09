@@ -76,10 +76,16 @@ function AuthScreen({ onLogin }: { onLogin: (user: User) => void }) {
     <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-800 to-green-950 flex items-center justify-center p-4">
       <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 w-full max-w-md border border-white/20 shadow-2xl">
         <div className="text-center mb-8">
-          <div className="inline-block p-4 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full mb-4 shadow-lg">
-            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+          <div className="inline-block p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg">
+            {isLogin ? (
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+            ) : (
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            )}
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">CricScore Pro</h1>
           <p className="text-green-300 text-sm">{isLogin ? 'Welcome Back!' : 'Create Your Account'}</p>
@@ -155,7 +161,7 @@ function AuthScreen({ onLogin }: { onLogin: (user: User) => void }) {
         </form>
         
         <div className="mt-6 text-center">
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-green-300 hover:text-green-200 text-sm font-medium transition-colors">
+          <button onClick={() => { setIsLogin(!isLogin); setError(''); }} className="text-white hover:text-gray-200 text-sm font-medium transition-colors">
             {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
           </button>
         </div>
@@ -443,17 +449,17 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
             onClick={() => setTab(i)} 
             className={`flex-1 py-3 flex flex-col items-center gap-1.5 transition-all relative ${
               tab === i 
-                ? 'text-transparent bg-clip-text bg-gradient-to-b from-green-400 to-emerald-600' 
-                : 'text-gray-500 hover:text-gray-300'
+                ? 'text-white' 
+                : 'text-blue-600 hover:text-blue-400'
             }`}
           >
             {tab === i && (
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-gradient-to-r from-green-400 to-emerald-600 rounded-full"></div>
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-white rounded-full"></div>
             )}
             <div className={`p-2 rounded-xl transition-all ${
               tab === i 
-                ? 'bg-gradient-to-br from-green-500/20 to-emerald-600/20 shadow-lg' 
-                : ''
+                ? 'bg-white/10 shadow-lg' 
+                : 'bg-blue-500/10'
             }`}>
               {i === 0 && (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
