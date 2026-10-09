@@ -540,6 +540,15 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
     setLiveMatches(getMatches().filter(m => m.status === 'live' && m.innings && m.innings.length > 0));
   };
 
+  // ✅ Real-time update: Refresh live matches every 2 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshMatches();
+    }, 2000); // Refresh every 2 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const handleDelete = (matchId: string) => {
     if (window.confirm('Are you sure you want to delete this live match?')) {
       console.log('Deleting live match:', matchId);
@@ -570,12 +579,9 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
     }
     text += `\nvia CricScore Pro`;
 
-    if (navigator.share) {
-      navigator.share({ title: 'CricScore Pro - Live Match', text }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Live score card copied! Share on Facebook, WhatsApp, or any social media.');
-    }
+    // ✅ Share to Facebook
+    const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(text)}`;
+    window.open(facebookShareUrl, '_blank');
   };
 
   if (broadcastMatch) {
@@ -598,8 +604,14 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
             <div key={m.id} className="bg-gray-800 rounded-xl p-4 border border-red-500/30">
               <div className="flex items-center justify-between mb-3">
                 <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">● LIVE</span>
-                <div className="flex gap-1">
-                  <button onClick={() => handleShare(m)} className="bg-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-700">📤</button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleShare(m)} 
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all duration-200 flex items-center gap-1"
+                  >
+                    <span>📤</span>
+                    <span>Share</span>
+                  </button>
                   <button onClick={() => setBroadcastMatch(m)} className="bg-purple-600 px-2 py-1 rounded text-xs hover:bg-purple-700">📹</button>
                   <button onClick={() => handleDelete(m.id)} className="bg-red-600 px-2 py-1 rounded text-xs hover:bg-red-700">🗑️</button>
                 </div>
@@ -1722,13 +1734,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
                 return;
               }
 
-              const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+              const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
               const inn = newMatch.innings[1];
               
               inn.currentBatsmen = [strikerId, nonStrikerId];
               inn.currentBowler = bowlerId;
 
               setShow2ndInningsSelection(false);
+              setCurrentMatch(newMatch);
               onUpdate(newMatch);
             }}
             className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-4 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 shadow-lg"
@@ -2032,17 +2045,17 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
         <div className="flex gap-2">
           <button 
             onClick={handleShare} 
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all duration-200 flex items-center gap-1"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white w-10 h-10 rounded-lg font-semibold shadow-lg transition-all duration-200 flex items-center justify-center"
+            title="Share"
           >
-            <span>📤</span>
-            <span>Share</span>
+            📤
           </button>
           <button 
             onClick={handleDownload} 
-            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg transition-all duration-200 flex items-center gap-1"
+            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white w-10 h-10 rounded-lg font-semibold shadow-lg transition-all duration-200 flex items-center justify-center"
+            title="Download"
           >
-            <span>📥</span>
-            <span>Download</span>
+            📥
           </button>
         </div>
       </div>
