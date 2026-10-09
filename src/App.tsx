@@ -221,55 +221,11 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
           </div>
         </div>
 
-        {/* Export/Import Integration */}
+        {/* Export Match Summary */}
         <div className="bg-gray-800 rounded-xl p-4">
-          <h3 className="font-bold mb-3">💾 Data Backup</h3>
-          <p className="text-xs text-gray-400 mb-3">Export your matches to JSON/CSV or import from file</p>
+          <h3 className="font-bold mb-3">📄 Export Match Summary</h3>
+          <p className="text-xs text-gray-400 mb-3">Download match summary as PDF to your phone</p>
           <div className="space-y-2">
-            <button 
-              onClick={() => {
-                try {
-                  const { exportMatchesToJSON } = require('./exportImport');
-                  const matches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
-                  if (matches.length === 0) {
-                    setError('No matches to export');
-                    setTimeout(() => setError(''), 3000);
-                    return;
-                  }
-                  exportMatchesToJSON(matches);
-                  setMessage(`✅ ${matches.length} matches exported to JSON!`);
-                  setTimeout(() => setMessage(''), 3000);
-                } catch (err: any) {
-                  setError('Failed to export: ' + err.message);
-                  setTimeout(() => setError(''), 3000);
-                }
-              }}
-              className="w-full bg-blue-600 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm"
-            >
-              📤 Export All Matches (JSON)
-            </button>
-            <button 
-              onClick={async () => {
-                try {
-                  const { exportMatchesToCSV } = require('./exportImport');
-                  const matches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
-                  if (matches.length === 0) {
-                    setError('No matches to export');
-                    setTimeout(() => setError(''), 3000);
-                    return;
-                  }
-                  exportMatchesToCSV(matches);
-                  setMessage(`✅ ${matches.length} matches exported to CSV!`);
-                  setTimeout(() => setMessage(''), 3000);
-                } catch (err: any) {
-                  setError('Failed to export: ' + err.message);
-                  setTimeout(() => setError(''), 3000);
-                }
-              }}
-              className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 text-sm"
-            >
-              📊 Export All Matches (CSV)
-            </button>
             <button 
               onClick={async () => {
                 try {
@@ -286,16 +242,16 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
                   // Export latest completed match
                   const latestMatch = completedMatches[completedMatches.length - 1];
                   await exportMatchToPDF(latestMatch);
-                  setMessage(`✅ Match summary exported to PDF!`);
+                  setMessage(`✅ Match summary downloaded to your phone!`);
                   setTimeout(() => setMessage(''), 3000);
                 } catch (err: any) {
                   setError('Failed to export PDF: ' + err.message);
                   setTimeout(() => setError(''), 3000);
                 }
               }}
-              className="w-full bg-red-600 py-2 rounded-lg font-bold hover:bg-red-700 text-sm"
+              className="w-full bg-green-600 py-3 rounded-lg font-bold hover:bg-green-700 text-sm"
             >
-              📄 Export Latest Match (PDF)
+              📥 Download Latest Match Summary (PDF)
             </button>
           </div>
         </div>
@@ -973,7 +929,7 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 
       <div className="p-4 space-y-4">
         <div className="flex gap-2 mb-4">
-          {[1, 2, 3, 4].map(s => (
+          {[1, 2, 3, 4, 5].map(s => (
             <div key={s} className={`flex-1 h-2 rounded-full ${step >= s ? 'bg-green-500' : 'bg-gray-700'}`} />
           ))}
         </div>
@@ -1060,11 +1016,137 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
               <p className="text-sm text-gray-300"><strong>{tossWinner}</strong> won the toss and chose to <strong>{tossDecision}</strong> first</p>
               <p className="text-xs text-gray-500 mt-1">Batting first: {tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name)}</p>
             </div>
-            <button onClick={handleStart} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-4 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 shadow-lg">
+            <button onClick={() => setStep(5)} className="w-full bg-green-600 py-3 rounded-lg font-bold hover:bg-green-700">Next → Select Opening Players</button>
+          </div>
+        )}
+
+        {step === 5 && (() => {
+          const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
+          return (
+          <div className="space-y-4">
+            <h3 className="font-bold text-lg">🏏 Select Opening Players</h3>
+            <p className="text-sm text-gray-400">Choose opening batsmen and bowler for {battingFirst}</p>
+            
+            <div className="bg-gray-800 rounded-xl p-4">
+              <h4 className="font-bold mb-3 text-green-400">Opening Batsmen</h4>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">Striker</label>
+                  <select 
+                    id="opening-striker"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">Select Opening Batsman</option>
+                    {(battingFirst === team1Name ? team1Players : team2Players).map(player => (
+                      <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">Non-Striker</label>
+                  <select 
+                    id="opening-non-striker"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">Select Non-Striker</option>
+                    {(battingFirst === team1Name ? team1Players : team2Players).map(player => (
+                      <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 rounded-xl p-4">
+              <h4 className="font-bold mb-3 text-purple-400">Opening Bowler</h4>
+              <select 
+                id="opening-bowler"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none"
+              >
+                <option value="">Select Opening Bowler</option>
+                {(battingFirst === team1Name ? team2Players : team1Players).map(player => (
+                  <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
+                ))}
+              </select>
+            </div>
+
+            <button 
+              onClick={() => {
+                const strikerSelect = document.getElementById('opening-striker') as HTMLSelectElement;
+                const nonStrikerSelect = document.getElementById('opening-non-striker') as HTMLSelectElement;
+                const bowlerSelect = document.getElementById('opening-bowler') as HTMLSelectElement;
+
+                const strikerId = strikerSelect.value;
+                const nonStrikerId = nonStrikerSelect.value;
+                const bowlerId = bowlerSelect.value;
+
+                if (!strikerId || !nonStrikerId || !bowlerId) {
+                  alert('Please select all opening players');
+                  return;
+                }
+
+                if (strikerId === nonStrikerId) {
+                  alert('Striker and Non-Striker cannot be the same');
+                  return;
+                }
+
+                // Update the handleStart function to use these selections
+                const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
+                
+                const team1Id = league && leagueTeam1Id ? leagueTeam1Id : `t1_${Date.now()}`;
+                const team2Id = league && leagueTeam2Id ? leagueTeam2Id : `t2_${Date.now()}`;
+                
+                const team1: { id: string; name: string; players: Player[] } = { id: team1Id, name: team1Name, players: team1Players };
+                const team2: { id: string; name: string; players: Player[] } = { id: team2Id, name: team2Name, players: team2Players };
+
+                const batsmenStats: Record<string, BatsmanStats> = {};
+                const bowlersStats: Record<string, BowlerStats> = {};
+
+                const battingTeam = battingFirst === team1Name ? team1 : team2;
+                const bowlingTeam = battingFirst === team1Name ? team2 : team1;
+
+                battingTeam.players.forEach(p => {
+                  batsmenStats[p.id] = { playerId: p.id, playerName: p.name, runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false };
+                });
+                bowlingTeam.players.forEach(p => {
+                  bowlersStats[p.id] = { playerId: p.id, playerName: p.name, overs: 0, balls: 0, maidens: 0, runs: 0, wickets: 0, extras: 0 };
+                });
+
+                const innings1: InningsData = {
+                  battingTeamId: battingFirst === team1Name ? team1.id : team2.id,
+                  bowlingTeamId: battingFirst === team1Name ? team2.id : team1.id,
+                  runs: 0, wickets: 0, overs: 0, balls: 0,
+                  extras: { wides: 0, noBalls: 0 },
+                  ballEvents: [],
+                  batsmenStats,
+                  bowlersStats,
+                  currentBatsmen: [strikerId, nonStrikerId],
+                  currentBowler: bowlerId,
+                  isCompleted: false
+                };
+
+                const match: Match = {
+                  id: `match_${Date.now()}`,
+                  userId: user.id,
+                  team1, team2, venue, totalOvers,
+                  tossWinner, tossDecision, battingFirst,
+                  innings: [innings1],
+                  currentInnings: 0,
+                  status: 'live',
+                  createdAt: new Date().toISOString(),
+                  leagueId: league?.id
+                };
+
+                saveMatch(match);
+                onStart(match);
+              }}
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-4 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 shadow-lg"
+            >
               🏏 Start Match
             </button>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
@@ -1075,25 +1157,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   // ✅ SIMPLIFIED: Only UI state, no match data state
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
-  const [showOpeningSelection, setShowOpeningSelection] = useState(false);
+  const [show2ndInningsSelection, setShow2ndInningsSelection] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
 
   // ✅ Use match prop directly - parent is source of truth
   const innings = match.innings?.[match.currentInnings];
-  
-  // Check if opening selection is needed
-  useEffect(() => {
-    if (innings && innings.overs === 0 && innings.balls === 0 && innings.wickets === 0) {
-      // First ball of the match - show opening selection
-      const strikerId = innings.currentBatsmen?.[0];
-      const bowlerId = innings.currentBowler;
-      
-      if (!strikerId || !bowlerId) {
-        setShowOpeningSelection(true);
-      }
-    }
-  }, [innings]);
   
   if (!innings) {
     return (
@@ -1304,14 +1373,15 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       ballEvents: [],
       batsmenStats,
       bowlersStats,
-      currentBatsmen: [secondBattingTeam.players[0].id, secondBattingTeam.players[1].id],
-      currentBowler: secondBowlingTeam.players[0].id,
+      currentBatsmen: ['', ''], // Empty - will be selected by user
+      currentBowler: '', // Empty - will be selected by user
       isCompleted: false
     };
 
     newMatch.innings.push(innings2);
     newMatch.currentInnings = 1;
     setInningBreak(false);
+    setShow2ndInningsSelection(true); // Show selection screen
     onUpdate(newMatch);
   };
 
@@ -1436,14 +1506,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  // Opening selection screen
-  if (showOpeningSelection) {
+  // 2nd Innings Opening Selection
+  if (show2ndInningsSelection) {
+    const secondInnings = match.innings[1];
+    const secondBattingTeam = secondInnings?.battingTeamId === match.team1.id ? match.team1 : match.team2;
+    const secondBowlingTeam = secondInnings?.battingTeamId === match.team1.id ? match.team2 : match.team1;
+    
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
         <div className="text-center mb-6">
           <div className="text-5xl mb-3">🏏</div>
-          <h2 className="text-2xl font-bold">Select Opening Players</h2>
-          <p className="text-gray-400 mt-2">Choose opening batsmen and bowler</p>
+          <h2 className="text-2xl font-bold">2nd Innings - Select Opening Players</h2>
+          <p className="text-gray-400 mt-2">Choose opening batsmen and bowler for {secondBattingTeam.name}</p>
         </div>
 
         <div className="space-y-6">
@@ -1454,12 +1528,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
               <div>
                 <label className="text-sm text-gray-400 mb-1 block">Striker</label>
                 <select 
-                  id="opening-striker"
+                  id="2nd-striker"
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none"
-                  defaultValue={innings.currentBatsmen?.[0] || ''}
                 >
                   <option value="">Select Opening Batsman</option>
-                  {battingTeam.players.map(player => (
+                  {secondBattingTeam.players.map(player => (
                     <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
                   ))}
                 </select>
@@ -1467,12 +1540,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
               <div>
                 <label className="text-sm text-gray-400 mb-1 block">Non-Striker</label>
                 <select 
-                  id="opening-non-striker"
+                  id="2nd-non-striker"
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none"
-                  defaultValue={innings.currentBatsmen?.[1] || ''}
                 >
                   <option value="">Select Non-Striker</option>
-                  {battingTeam.players.map(player => (
+                  {secondBattingTeam.players.map(player => (
                     <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
                   ))}
                 </select>
@@ -1484,12 +1556,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           <div className="bg-gray-800 rounded-xl p-4">
             <h3 className="font-bold text-lg mb-3 text-purple-400">⚾ Opening Bowler</h3>
             <select 
-              id="opening-bowler"
+              id="2nd-bowler"
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none"
-              defaultValue={innings.currentBowler || ''}
             >
               <option value="">Select Opening Bowler</option>
-              {bowlingTeam.players.map(player => (
+              {secondBowlingTeam.players.map(player => (
                 <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
               ))}
             </select>
@@ -1498,9 +1569,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           {/* Start Button */}
           <button 
             onClick={() => {
-              const strikerSelect = document.getElementById('opening-striker') as HTMLSelectElement;
-              const nonStrikerSelect = document.getElementById('opening-non-striker') as HTMLSelectElement;
-              const bowlerSelect = document.getElementById('opening-bowler') as HTMLSelectElement;
+              const strikerSelect = document.getElementById('2nd-striker') as HTMLSelectElement;
+              const nonStrikerSelect = document.getElementById('2nd-non-striker') as HTMLSelectElement;
+              const bowlerSelect = document.getElementById('2nd-bowler') as HTMLSelectElement;
 
               const strikerId = strikerSelect.value;
               const nonStrikerId = nonStrikerSelect.value;
@@ -1517,17 +1588,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
               }
 
               const newMatch = JSON.parse(JSON.stringify(match)) as Match;
-              const inn = newMatch.innings[newMatch.currentInnings];
+              const inn = newMatch.innings[1];
               
               inn.currentBatsmen = [strikerId, nonStrikerId];
               inn.currentBowler = bowlerId;
 
-              setShowOpeningSelection(false);
+              setShow2ndInningsSelection(false);
               onUpdate(newMatch);
             }}
             className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-4 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 shadow-lg"
           >
-            🏏 Start Match
+            🏏 Start 2nd Innings
           </button>
         </div>
       </div>
