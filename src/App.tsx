@@ -1263,9 +1263,9 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   );
 }
 
-// ============= LIVE SCORING SCREEN - COMPLETELY REWRITTEN =============
+// ============= LIVE SCORING SCREEN - BRAND NEW IMPLEMENTATION =============
 function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: () => void; onUpdate: (m: Match) => void }) {
-  // ✅ SIMPLE: Only UI state for modals
+  // ✅ Only UI state
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
   const [show2ndInningsSelection, setShow2ndInningsSelection] = useState(false);
@@ -1274,7 +1274,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
   const [pendingBowlerSelect, setPendingBowlerSelect] = useState(false);
   
-  // ✅ SIMPLE: Use match prop directly
+  // ✅ Direct access to current innings
   const innings = match.innings?.[match.currentInnings];
   
   if (!innings) {
@@ -1313,11 +1313,19 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
 
+  // ✅ NEW: Process ball - completely rewritten
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
+    console.log('🏏 Processing ball:', { runs, isWide, isNoBall, isWicket });
+    
+    // Create deep copy
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
-    if (!inn) return;
+    if (!inn) {
+      console.error('❌ No innings found');
+      return;
+    }
     
+    // Create ball event
     const ballEvent: BallEvent = {
       id: `ball_${Date.now()}_${Math.random()}`,
       ballNumber: inn.overs * 6 + inn.balls + (isWide || isNoBall ? 0 : 1),
@@ -1333,9 +1341,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       timestamp: new Date().toISOString()
     };
 
+    // Update innings
     inn.runs += runs;
     inn.ballEvents.push(ballEvent);
 
+    // Update balls count
     if (!isWide && !isNoBall) {
       inn.balls += 1;
       if (inn.balls === 6) {
@@ -1344,9 +1354,11 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
     }
 
+    // Update extras
     if (isWide) inn.extras.wides += runs;
     if (isNoBall) inn.extras.noBalls += runs;
 
+    // Update batsman stats
     const batsmanStat = inn.batsmenStats?.[inn.currentBatsmen[0]];
     if (batsmanStat && !isWide) {
       batsmanStat.runs += runs;
@@ -1355,6 +1367,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (runs === 6) batsmanStat.sixes += 1;
     }
 
+    // Update bowler stats
     const bowlerStat = inn.bowlersStats?.[inn.currentBowler];
     if (bowlerStat) {
       bowlerStat.runs += runs;
@@ -1368,7 +1381,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (isWide || isNoBall) bowlerStat.extras += runs;
     }
 
+    // Handle wicket
     if (isWicket && !isWide) {
+      console.log('💥 Wicket!');
       if (batsmanStat) {
         batsmanStat.isOut = true;
         batsmanStat.dismissal = wicketType || 'out';
@@ -1377,62 +1392,70 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.wickets += 1;
 
       if (inn.wickets >= 10) {
+        console.log('✅ All out - innings ended');
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
-        // ✅ FIXED: New batsman always comes at striker position (where outgoing batsman was)
-        // No swap needed - just replace the outgoing batsman
+        console.log('✅ New batsman needed');
+        // Clear striker position for new batsman
         inn.currentBatsmen[0] = '';
         setNewBatsmanPosition('striker');
         
-        // Check if this was the last ball of the over
+        // Check if this was last ball of over
         const wasLastBall = (inn.balls === 0 && inn.overs > 0);
-        
         if (wasLastBall) {
-          // Last ball - after new batsman is selected, will need to select new bowler
+          console.log('⚠️ Last ball of over - will need new bowler after batsman');
           setPendingBowlerSelect(true);
         }
         
-        // ✅ Update parent immediately
+        // Update parent and show modal
         onUpdate(newMatch);
-        // Show modal for new batsman selection
         setShowNewBatsman(true);
       }
-      return; // Don't call onUpdate again below
+      return;
     }
 
+    // Rotate strike on odd runs
     if (!isWide && (runs === 1 || runs === 3)) {
+      console.log('🔄 Rotating strike');
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
     }
 
-    // End of over - rotate strike and select new bowler
+    // End of over
     if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
+      console.log('🔄 Over completed');
+      // Rotate strike
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
+      
       if (inn.overs >= match.totalOvers) {
+        console.log('✅ Overs completed - innings ended');
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
-        // Clear current bowler so UI shows "Selecting..."
+        console.log('✅ New bowler needed');
+        // Clear bowler for new selection
         inn.currentBowler = '';
-        
-        // Update parent immediately
         onUpdate(newMatch);
-        // Show modal for new bowler selection
         setShowBowlerSelect(true);
       }
-      return; // Don't call onUpdate again below
+      return;
     }
 
+    // Check if target achieved
     if (target && inn.runs >= target) {
+      console.log('🎯 Target achieved!');
       inn.isCompleted = true;
       handleInningsEnd(newMatch);
     }
 
+    // Update parent
+    console.log('✅ Updating match');
     onUpdate(newMatch);
   };
 
+  // ✅ NEW: Handle innings end - completely rewritten
   const handleInningsEnd = (newMatch: Match) => {
     console.log('🏁 Innings ended, current innings:', newMatch.currentInnings);
     
@@ -1470,16 +1493,21 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     }
   };
 
+  // ✅ NEW: Start second innings - completely rewritten
   const startSecondInnings = () => {
+    console.log('🔄 Starting 2nd innings');
+    
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const firstInnings = newMatch.innings[0];
     if (!firstInnings) return;
+    
     const secondBattingTeamId = firstInnings.bowlingTeamId;
     const secondBowlingTeamId = firstInnings.battingTeamId;
     
     const secondBattingTeam = secondBattingTeamId === newMatch.team1.id ? newMatch.team1 : newMatch.team2;
     const secondBowlingTeam = secondBattingTeamId === newMatch.team1.id ? newMatch.team2 : newMatch.team1;
 
+    // Initialize stats
     const batsmenStats: Record<string, BatsmanStats> = {};
     const bowlersStats: Record<string, BowlerStats> = {};
 
@@ -1490,6 +1518,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       bowlersStats[p.id] = { playerId: p.id, playerName: p.name, overs: 0, balls: 0, maidens: 0, runs: 0, wickets: 0, extras: 0 };
     });
 
+    // Create 2nd innings
     const innings2: InningsData = {
       battingTeamId: secondBattingTeamId,
       bowlingTeamId: secondBowlingTeamId,
@@ -1506,15 +1535,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     newMatch.innings.push(innings2);
     newMatch.currentInnings = 1;
     setInningBreak(false);
-    setShow2ndInningsSelection(true); // Show selection screen
+    setShow2ndInningsSelection(true);
     
+    console.log('✅ 2nd innings created, showing selection screen');
     onUpdate(newMatch);
   };
 
+  // ✅ NEW: Select new batsman - completely rewritten
   const selectNewBatsman = (playerId: string) => {
-    console.log('🔄 Selecting new batsman:', playerId, 'Position:', newBatsmanPosition);
+    console.log('🏏 Selecting new batsman:', playerId, 'Position:', newBatsmanPosition);
     
-    // ✅ Create fresh copy from match prop
+    // Create deep copy
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     
@@ -1523,7 +1554,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       return;
     }
     
-    // ✅ Update current batsman based on position
+    // Update batsman based on position
     if (newBatsmanPosition === 'striker') {
       inn.currentBatsmen[0] = playerId;
       console.log('✅ Set striker:', playerId);
@@ -1534,16 +1565,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     
     console.log('✅ Updated currentBatsmen:', inn.currentBatsmen);
     
-    // ✅ Close modal first
+    // Close modal
     setShowNewBatsman(false);
     
-    // ✅ Update parent
+    // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new batsman');
     
-    // ✅ If this was last ball of over, now show bowler selection
+    // Check if we need to select bowler (last ball wicket)
     if (pendingBowlerSelect) {
-      console.log('✅ Pending bowler select - showing bowler modal');
+      console.log('⚠️ Pending bowler select - showing bowler modal');
       setPendingBowlerSelect(false);
       
       // Swap batsmen for new over
@@ -1551,16 +1582,15 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.currentBowler = '';
       
       onUpdate(newMatch);
-      
-      // Show bowler selection modal
       setShowBowlerSelect(true);
     }
   };
 
+  // ✅ NEW: Select new bowler - completely rewritten
   const selectBowler = (playerId: string) => {
-    console.log('🔄 Selecting new bowler:', playerId);
+    console.log('⚾ Selecting new bowler:', playerId);
     
-    // ✅ Create fresh copy from match prop
+    // Create deep copy
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     
@@ -1569,7 +1599,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       return;
     }
     
-    // Update current bowler
+    // Update bowler
     inn.currentBowler = playerId;
     console.log('✅ Updated currentBowler:', inn.currentBowler);
     
@@ -1581,7 +1611,10 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     console.log('✅ Match updated with new bowler');
   };
 
+  // ✅ NEW: Handle undo - completely rewritten
   const handleUndo = () => {
+    console.log('↩️ Undoing last ball');
+    
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn || !inn.ballEvents || inn.ballEvents.length === 0) return;
@@ -1589,6 +1622,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     const lastEvent = inn.ballEvents.pop()!;
     if (!lastEvent) return;
     
+    // Reverse innings stats
     inn.runs -= (lastEvent.runs || 0);
     if (!lastEvent.isWide && !lastEvent.isNoBall) {
       inn.balls -= 1;
@@ -1597,6 +1631,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     if (lastEvent.isWide) inn.extras.wides -= (lastEvent.runs || 0);
     if (lastEvent.isNoBall) inn.extras.noBalls -= (lastEvent.runs || 0);
 
+    // Reverse batsman stats
     const batsmanStat = inn.batsmenStats?.[lastEvent.batsmanId];
     if (batsmanStat && !lastEvent.isWide) {
       batsmanStat.runs -= (lastEvent.runs || 0);
@@ -1605,6 +1640,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (lastEvent.runs === 6) batsmanStat.sixes -= 1;
     }
 
+    // Reverse bowler stats
     const bowlerStat = inn.bowlersStats?.[lastEvent.bowlerId];
     if (bowlerStat) {
       bowlerStat.runs -= (lastEvent.runs || 0);
@@ -1615,6 +1651,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       if (lastEvent.isWide || lastEvent.isNoBall) bowlerStat.extras -= (lastEvent.runs || 0);
     }
 
+    // Reverse wicket
     if (lastEvent.isWicket && batsmanStat && bowlerStat) {
       batsmanStat.isOut = false;
       batsmanStat.dismissal = undefined;
@@ -1622,6 +1659,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.wickets -= 1;
     }
 
+    console.log('✅ Undo completed');
     onUpdate(newMatch);
   };
 
@@ -1741,15 +1779,20 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
                 return;
               }
 
+              console.log('🏏 Setting 2nd innings opening players');
               const newMatch = JSON.parse(JSON.stringify(match)) as Match;
               const inn = newMatch.innings[1];
               
               inn.currentBatsmen = [strikerId, nonStrikerId];
               inn.currentBowler = bowlerId;
 
+              console.log('✅ Set batsmen:', strikerId, nonStrikerId);
+              console.log('✅ Set bowler:', bowlerId);
+
               setShow2ndInningsSelection(false);
               
               onUpdate(newMatch);
+              console.log('✅ 2nd innings started');
             }}
             className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-4 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 shadow-lg"
           >
@@ -1830,11 +1873,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         {strikerId && nonStrikerId && (
           <button
             onClick={() => {
+              console.log('🔄 Swapping batsmen');
               const newMatch = JSON.parse(JSON.stringify(match)) as Match;
               const inn = newMatch.innings[newMatch.currentInnings];
               if (inn) {
                 inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-                
+                console.log('✅ Batsmen swapped');
                 onUpdate(newMatch);
               }
             }}
