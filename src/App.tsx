@@ -326,7 +326,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
   ];
 
   if (activeMatch && activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
-    return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={async (m) => { setActiveMatch(m); await saveMatch(m); }} />;
+    return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
   }
 
   if (activeMatch && activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
@@ -1263,9 +1263,9 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   );
 }
 
-// ============= LIVE SCORING SCREEN - COMPLETELY NEW IMPLEMENTATION =============
+// ============= LIVE SCORING SCREEN - COMPLETELY REWRITTEN =============
 function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: () => void; onUpdate: (m: Match) => void }) {
-  // ✅ SIMPLIFIED: Only UI state, no match data state
+  // ✅ SIMPLE: Only UI state for modals
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
   const [show2ndInningsSelection, setShow2ndInningsSelection] = useState(false);
@@ -1274,7 +1274,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
   const [pendingBowlerSelect, setPendingBowlerSelect] = useState(false);
   
-  // ✅ SIMPLE: Use match prop directly - no complex state management
+  // ✅ SIMPLE: Use match prop directly
   const innings = match.innings?.[match.currentInnings];
   
   if (!innings) {
