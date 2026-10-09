@@ -442,7 +442,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900 to-gray-800 border-t border-gray-700 flex shadow-2xl">
+      <div className="fixed bottom-0 left-0 right-0 bg-blue-950 border-t border-blue-800 flex shadow-2xl">
         {tabs.map((t, i) => (
           <button 
             key={i} 
@@ -450,7 +450,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
             className={`flex-1 py-3 flex flex-col items-center gap-1.5 transition-all relative ${
               tab === i 
                 ? 'text-white' 
-                : 'text-blue-600 hover:text-blue-400'
+                : 'text-blue-400 hover:text-blue-300'
             }`}
           >
             {tab === i && (
@@ -632,13 +632,7 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
       
       <div className="space-y-3">
         <div className="flex justify-between items-center bg-gray-700/30 rounded-xl p-3 group-hover:bg-gray-700/50 transition-all">
-          <span className={`text-lg font-bold ${
-            winningTeam === match.team1.name 
-              ? 'text-green-400' 
-              : losingTeam === match.team1.name 
-              ? 'text-red-400' 
-              : 'text-white'
-          }`}>
+          <span className={`text-lg font-black bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent`}>
             {match.team1.name}
           </span>
           <span className="text-xl font-bold text-yellow-400 font-mono tracking-wider">
@@ -647,13 +641,7 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
         </div>
         
         <div className="flex justify-between items-center bg-gray-700/30 rounded-xl p-3 group-hover:bg-gray-700/50 transition-all">
-          <span className={`text-lg font-bold ${
-            winningTeam === match.team2.name 
-              ? 'text-green-400' 
-              : losingTeam === match.team2.name 
-              ? 'text-red-400' 
-              : 'text-white'
-          }`}>
+          <span className={`text-lg font-black bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent`}>
             {match.team2.name}
           </span>
           <span className="text-xl font-bold text-yellow-400 font-mono tracking-wider">
@@ -1904,24 +1892,24 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white pb-4">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-900 px-4 py-4 shadow-lg">
+    <div className="h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white overflow-hidden flex flex-col">
+      {/* Header - Compact */}
+      <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-900 px-3 py-2 shadow-lg flex-shrink-0">
         <div className="flex items-center justify-between">
-          <button onClick={onBack} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-all">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={onBack} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg transition-all">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
           <div className="text-center">
-            <div className="flex items-center gap-2 justify-center mb-1">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-              <p className="text-xs text-red-200 font-bold tracking-wider">LIVE</p>
+            <div className="flex items-center gap-1.5 justify-center">
+              <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+              <p className="text-[10px] text-red-200 font-bold tracking-wider">LIVE</p>
             </div>
-            <p className="font-bold text-sm text-white">{getTeamName(innings.battingTeamId)} vs {getTeamName(innings.bowlingTeamId)}</p>
+            <p className="font-bold text-xs text-white">{getTeamName(innings.battingTeamId)} vs {getTeamName(innings.bowlingTeamId)}</p>
           </div>
-          <button onClick={handleUndo} className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 px-3 py-2 rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={handleUndo} className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 px-2 py-1.5 rounded-lg text-[10px] font-bold shadow-lg transition-all flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
             </svg>
             <span>Undo</span>
@@ -1929,91 +1917,87 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         </div>
       </div>
 
-      {/* Score Card */}
-      <div className="bg-gradient-to-b from-gray-800 to-gray-900 px-4 py-6 shadow-xl">
+      {/* Score Card - Compact */}
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 px-3 py-2 shadow-xl flex-shrink-0">
         <div className="text-center">
-          <div className="inline-block bg-gray-700/50 rounded-full px-4 py-1 mb-3">
-            <p className="text-xs text-gray-300 font-medium">{getTeamName(innings.battingTeamId)} - Innings {match.currentInnings + 1}</p>
+          <p className="text-[10px] text-gray-400 mb-1">{getTeamName(innings.battingTeamId)} - Innings {match.currentInnings + 1}</p>
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <span className="text-4xl font-black bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">{innings.runs}</span>
+            <span className="text-2xl font-bold text-gray-400">/{innings.wickets}</span>
           </div>
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <span className="text-6xl font-black bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">{innings.runs}</span>
-            <span className="text-4xl font-bold text-gray-400">/{innings.wickets}</span>
-          </div>
-          <div className="inline-block bg-gray-700/30 rounded-full px-4 py-1 mb-3">
-            <p className="text-sm text-gray-300">
-              <span className="font-bold text-white">{innings.overs}.{innings.balls}</span>
-              <span className="text-gray-400"> / {match.totalOvers} overs</span>
-            </p>
-          </div>
-          <div className="flex justify-center gap-3 mt-3">
-            <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg px-3 py-1.5">
-              <span className="text-xs text-blue-300 font-semibold">CRR: {runRate}</span>
+          <p className="text-xs text-gray-300 mb-1">
+            <span className="font-bold text-white">{innings.overs}.{innings.balls}</span>
+            <span className="text-gray-400"> / {match.totalOvers} ov</span>
+          </p>
+          <div className="flex justify-center gap-2">
+            <div className="bg-blue-500/20 border border-blue-500/30 rounded px-2 py-0.5">
+              <span className="text-[10px] text-blue-300 font-semibold">CRR: {runRate}</span>
             </div>
             {reqRunRate && (
-              <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg px-3 py-1.5">
-                <span className="text-xs text-yellow-300 font-semibold">RRR: {reqRunRate}</span>
+              <div className="bg-yellow-500/20 border border-yellow-500/30 rounded px-2 py-0.5">
+                <span className="text-[10px] text-yellow-300 font-semibold">RRR: {reqRunRate}</span>
               </div>
             )}
             {remaining !== null && (
-              <div className="bg-red-500/20 border border-red-500/30 rounded-lg px-3 py-1.5">
-                <span className="text-xs text-red-300 font-semibold">Need: {remaining} off {ballsRemaining}</span>
+              <div className="bg-red-500/20 border border-red-500/30 rounded px-2 py-0.5">
+                <span className="text-[10px] text-red-300 font-semibold">Need: {remaining} off {ballsRemaining}</span>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Batsmen Cards */}
-      <div className="px-4 py-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className={`bg-gradient-to-br from-green-900/60 to-green-800/40 rounded-2xl p-4 border-2 shadow-lg ${!strikerId ? 'border-yellow-500/70 animate-pulse' : striker?.isOut ? 'border-red-700/50 opacity-60' : 'border-green-600/50'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="bg-green-500/30 p-1.5 rounded-lg">
-                <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Batsmen Cards - Compact */}
+      <div className="px-3 py-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-2">
+          <div className={`bg-gradient-to-br from-green-900/60 to-green-800/40 rounded-xl p-2 border-2 shadow-lg ${!strikerId ? 'border-yellow-500/70 animate-pulse' : striker?.isOut ? 'border-red-700/50 opacity-60' : 'border-green-600/50'}`}>
+            <div className="flex items-center gap-1 mb-1">
+              <div className="bg-green-500/30 p-1 rounded">
+                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <span className="text-xs text-green-300 font-bold tracking-wider">STRIKER</span>
-              {!strikerId && <span className="text-xs text-yellow-400 ml-auto font-bold">NEW</span>}
-              {striker?.isOut && strikerId && <span className="text-xs text-red-400 ml-auto font-bold">OUT</span>}
+              <span className="text-[10px] text-green-300 font-bold">STRIKER</span>
+              {!strikerId && <span className="text-[10px] text-yellow-400 ml-auto font-bold">NEW</span>}
+              {striker?.isOut && strikerId && <span className="text-[10px] text-red-400 ml-auto font-bold">OUT</span>}
             </div>
-            <p className="font-bold text-sm truncate mb-2">{strikerDisplayName}</p>
+            <p className="font-bold text-xs truncate mb-1">{strikerDisplayName}</p>
             {strikerId && (
               <>
-                <p className="text-3xl font-black bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                <p className="text-xl font-black bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
                   {striker?.runs || 0} 
-                  <span className="text-base text-gray-400 font-normal ml-1">({striker?.balls || 0})</span>
+                  <span className="text-xs text-gray-400 font-normal ml-1">({striker?.balls || 0})</span>
                 </p>
-                <div className="flex gap-3 text-xs text-gray-300 mt-2">
-                  <div className="bg-blue-500/20 px-2 py-1 rounded-md">
+                <div className="flex gap-2 text-[10px] text-gray-300 mt-1">
+                  <div className="bg-blue-500/20 px-1.5 py-0.5 rounded">
                     <span className="font-bold text-blue-400">4s:</span> {striker?.fours || 0}
                   </div>
-                  <div className="bg-purple-500/20 px-2 py-1 rounded-md">
+                  <div className="bg-purple-500/20 px-1.5 py-0.5 rounded">
                     <span className="font-bold text-purple-400">6s:</span> {striker?.sixes || 0}
                   </div>
                 </div>
               </>
             )}
           </div>
-          <div className="bg-gradient-to-br from-blue-900/60 to-blue-800/40 rounded-2xl p-4 border-2 border-blue-600/50 shadow-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="bg-blue-500/30 p-1.5 rounded-lg">
-                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-gradient-to-br from-blue-900/60 to-blue-800/40 rounded-xl p-2 border-2 border-blue-600/50 shadow-lg">
+            <div className="flex items-center gap-1 mb-1">
+              <div className="bg-blue-500/30 p-1 rounded">
+                <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <span className="text-xs text-blue-300 font-bold tracking-wider">NON-STRIKER</span>
+              <span className="text-[10px] text-blue-300 font-bold">NON-STRIKER</span>
             </div>
-            <p className="font-bold text-sm truncate mb-2">{nonStriker?.playerName || 'No batsman'}</p>
-            <p className="text-3xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent">
+            <p className="font-bold text-xs truncate mb-1">{nonStriker?.playerName || 'No batsman'}</p>
+            <p className="text-xl font-black bg-gradient-to-r from-blue-400 to-cyan-500 bg-clip-text text-transparent">
               {nonStriker?.runs || 0} 
-              <span className="text-base text-gray-400 font-normal ml-1">({nonStriker?.balls || 0})</span>
+              <span className="text-xs text-gray-400 font-normal ml-1">({nonStriker?.balls || 0})</span>
             </p>
-            <div className="flex gap-3 text-xs text-gray-300 mt-2">
-              <div className="bg-blue-500/20 px-2 py-1 rounded-md">
+            <div className="flex gap-2 text-[10px] text-gray-300 mt-1">
+              <div className="bg-blue-500/20 px-1.5 py-0.5 rounded">
                 <span className="font-bold text-blue-400">4s:</span> {nonStriker?.fours || 0}
               </div>
-              <div className="bg-purple-500/20 px-2 py-1 rounded-md">
+              <div className="bg-purple-500/20 px-1.5 py-0.5 rounded">
                 <span className="font-bold text-purple-400">6s:</span> {nonStriker?.sixes || 0}
               </div>
             </div>
@@ -2039,28 +2023,28 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         )}
       </div>
 
-      {/* Bowler Card */}
-      <div className="px-4 mb-3">
-        <div className={`bg-gradient-to-br from-purple-900/60 to-purple-800/40 rounded-2xl p-4 border-2 shadow-lg ${!innings.currentBowler ? 'border-yellow-500/70 animate-pulse' : 'border-purple-600/50'}`}>
+      {/* Bowler Card - Compact */}
+      <div className="px-3 mb-2 flex-shrink-0">
+        <div className={`bg-gradient-to-br from-purple-900/60 to-purple-800/40 rounded-xl p-2 border-2 shadow-lg ${!innings.currentBowler ? 'border-yellow-500/70 animate-pulse' : 'border-purple-600/50'}`}>
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="bg-purple-500/30 p-1.5 rounded-lg">
-                  <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center gap-1 mb-1">
+                <div className="bg-purple-500/30 p-1 rounded">
+                  <svg className="w-3 h-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <span className="text-xs text-purple-300 font-bold tracking-wider">BOWLER</span>
-                {!innings.currentBowler && <span className="text-xs text-yellow-400 font-bold ml-2">NEW OVER</span>}
+                <span className="text-[10px] text-purple-300 font-bold">BOWLER</span>
+                {!innings.currentBowler && <span className="text-[10px] text-yellow-400 font-bold ml-1">NEW OVER</span>}
               </div>
-              <p className="font-bold text-base">{bowlerDisplayName}</p>
+              <p className="font-bold text-xs">{bowlerDisplayName}</p>
             </div>
             {innings.currentBowler && (
-              <div className="text-right bg-purple-500/20 rounded-xl px-4 py-2">
-                <p className="text-2xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+              <div className="text-right bg-purple-500/20 rounded-lg px-2 py-1">
+                <p className="text-lg font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
                   {currentBowler?.overs || 0}.{currentBowler?.balls || 0}
                 </p>
-                <div className="flex gap-2 text-xs text-gray-300 mt-1">
+                <div className="flex gap-1 text-[10px] text-gray-300">
                   <span className="font-bold">{currentBowler?.maidens || 0}M</span>
                   <span className="font-bold">{currentBowler?.runs || 0}R</span>
                   <span className="font-bold text-red-400">{currentBowler?.wickets || 0}W</span>
@@ -2071,58 +2055,43 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         </div>
       </div>
 
-      {/* Scoring Buttons */}
-      <div className="px-4 space-y-3">
-        <p className="text-sm text-gray-400 font-semibold text-center">Score This Ball</p>
-        <div className="grid grid-cols-4 gap-2">
+      {/* Scoring Buttons - Compact */}
+      <div className="px-3 flex-1 flex flex-col justify-center">
+        <div className="grid grid-cols-4 gap-1.5 mb-2">
           {[0, 1, 2, 3].map(r => (
             <button key={r} onClick={() => processBall(r, false, false, false)}
-              className="bg-gradient-to-b from-gray-700 to-gray-800 py-4 rounded-xl font-bold text-xl hover:from-gray-600 hover:to-gray-700 active:scale-95 transition-all border border-gray-600">
+              className="bg-gradient-to-b from-gray-700 to-gray-800 py-3 rounded-lg font-bold text-lg hover:from-gray-600 hover:to-gray-700 active:scale-95 transition-all border border-gray-600">
               {r}
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5 mb-2">
           <button onClick={() => processBall(4, false, false, false)}
-            className="bg-gradient-to-b from-blue-600 to-blue-800 py-4 rounded-xl font-bold text-xl hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/50">
+            className="bg-gradient-to-b from-blue-600 to-blue-800 py-3 rounded-lg font-bold text-lg hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/50">
             4
           </button>
           <button onClick={() => processBall(6, false, false, false)}
-            className="bg-gradient-to-b from-green-600 to-green-800 py-4 rounded-xl font-bold text-xl hover:from-green-500 hover:to-green-700 active:scale-95 transition-all shadow-lg shadow-green-900/50">
+            className="bg-gradient-to-b from-green-600 to-green-800 py-3 rounded-lg font-bold text-lg hover:from-green-500 hover:to-green-700 active:scale-95 transition-all shadow-lg shadow-green-900/50">
             6
           </button>
           <button onClick={() => processBall(1, true, false, false)}
-            className="bg-gradient-to-b from-yellow-600 to-yellow-800 py-4 rounded-xl font-bold text-sm hover:from-yellow-500 hover:to-yellow-700 active:scale-95 transition-all">
+            className="bg-gradient-to-b from-yellow-600 to-yellow-800 py-3 rounded-lg font-bold text-xs hover:from-yellow-500 hover:to-yellow-700 active:scale-95 transition-all">
             Wide
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-1.5">
           <button onClick={() => processBall(1, false, true, false)}
-            className="bg-gradient-to-b from-orange-600 to-orange-800 py-4 rounded-xl font-bold text-sm hover:from-orange-500 hover:to-orange-700 active:scale-95 transition-all">
+            className="bg-gradient-to-b from-orange-600 to-orange-800 py-3 rounded-lg font-bold text-xs hover:from-orange-500 hover:to-orange-700 active:scale-95 transition-all">
             No Ball
           </button>
           <button onClick={() => processBall(0, false, false, true, 'bowled')}
-            className="bg-gradient-to-b from-red-600 to-red-800 py-4 rounded-xl font-bold text-sm hover:from-red-500 hover:to-red-700 active:scale-95 transition-all shadow-lg shadow-red-900/50">
+            className="bg-gradient-to-b from-red-600 to-red-800 py-3 rounded-lg font-bold text-xs hover:from-red-500 hover:to-red-700 active:scale-95 transition-all shadow-lg shadow-red-900/50">
             Wicket
           </button>
           <button onClick={() => processBall(0, false, false, false)}
-            className="bg-gradient-to-b from-gray-600 to-gray-800 py-4 rounded-xl font-bold text-sm hover:from-gray-500 hover:to-gray-700 active:scale-95 transition-all">
+            className="bg-gradient-to-b from-gray-600 to-gray-800 py-3 rounded-lg font-bold text-xs hover:from-gray-500 hover:to-gray-700 active:scale-95 transition-all">
             Dot
           </button>
-        </div>
-      </div>
-
-      {/* Recent balls */}
-      <div className="px-4 mt-4">
-        <p className="text-xs text-gray-400 mb-2">This Over:</p>
-        <div className="flex gap-1 flex-wrap">
-          {(innings.ballEvents || []).filter(e => e.over === innings.overs && (innings.balls > 0 ? e.over === innings.overs : e.over === innings.overs - 1)).slice(-12).map((e, i) => (
-            <span key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-              e.isWicket ? 'bg-red-600' : (e.runs || 0) === 4 ? 'bg-blue-600' : (e.runs || 0) === 6 ? 'bg-green-600' : e.isWide ? 'bg-yellow-600' : e.isNoBall ? 'bg-orange-600' : (e.runs || 0) === 0 ? 'bg-gray-700' : 'bg-gray-600'
-            }`}>
-              {e.isWicket ? 'W' : e.isWide ? 'Wd' : e.isNoBall ? 'Nb' : (e.runs ?? 0)}
-            </span>
-          ))}
         </div>
       </div>
 
