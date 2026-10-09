@@ -132,20 +132,17 @@ export function getMatches(userId?: string): Match[] {
   return matches;
 }
 
-export async function saveMatch(match: Match) {
+export function saveMatch(match: Match) {
   const matches = getMatches();
   const idx = matches.findIndex(m => m.id === match.id);
   if (idx >= 0) matches[idx] = match;
   else matches.push(match);
   localStorage.setItem('cric_matches', JSON.stringify(matches));
   
-  // Sync with Firebase
-  try {
-    await saveMatchToFirebase(match);
-    console.log('✅ Match saved locally and to Firebase');
-  } catch (err) {
+  // Sync with Firebase in background (don't wait)
+  saveMatchToFirebase(match).catch(err => {
     console.warn('⚠️ Firebase sync failed:', err);
-  }
+  });
 }
 
 export function deleteMatch(matchId: string) {
