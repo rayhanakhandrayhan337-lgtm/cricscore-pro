@@ -1289,8 +1289,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
-  const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
+  // ✅ FIX: Use current innings to determine batting/bowling team
+  const battingTeam = innings.battingTeamId === match.team1.id ? match.team1 : match.team2;
+  const bowlingTeam = innings.bowlingTeamId === match.team1.id ? match.team2 : match.team1;
   
   const strikerId = innings.currentBatsmen?.[0];
   const nonStrikerId = innings.currentBatsmen?.[1];
@@ -1890,12 +1891,25 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       </div>
 
       {/* Bowler Selection Modal */}
-      {showBowlerSelect && (
+      {showBowlerSelect && (() => {
+        // ✅ FIX: Find last over's bowler to enforce 1 over gap rule
+        const lastOverBowlerId = innings.ballEvents
+          .filter(e => e.over === innings.overs - 1)
+          .map(e => e.bowlerId)[0] || '';
+        
+        return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-96 overflow-y-auto">
             <h3 className="font-bold text-lg mb-3">⚾ Select Bowler for Over {innings.overs + 1}</h3>
+            {lastOverBowlerId && (
+              <p className="text-xs text-yellow-400 mb-2">
+                ⚠️ Last over's bowler cannot bowl this over (1 over gap rule)
+              </p>
+            )}
             <div className="space-y-2">
-              {bowlingTeam.players.filter(p => p.id !== innings.currentBowler).map(p => (
+              {bowlingTeam.players
+                .filter(p => p.id !== innings.currentBowler && p.id !== lastOverBowlerId)
+                .map(p => (
                 <div key={p.id} className="flex items-center gap-2">
                   <input 
                     type="radio" 
@@ -1926,7 +1940,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* New Batsman Modal */}
       {showNewBatsman && (
