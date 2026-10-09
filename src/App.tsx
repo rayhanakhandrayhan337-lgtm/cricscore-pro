@@ -1297,10 +1297,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const nonStrikerId = innings.currentBatsmen?.[1];
   const striker = strikerId ? innings.batsmenStats?.[strikerId] : null;
   const nonStriker = nonStrikerId ? innings.batsmenStats?.[nonStrikerId] : null;
-  const currentBowler = innings.currentBowler ? innings.bowlersStats?.[innings.currentBowler] : null;
+  
+  // ✅ FIX: Get bowler with proper null checking
+  const bowlerId = innings.currentBowler;
+  const currentBowler = bowlerId && innings.bowlersStats ? innings.bowlersStats[bowlerId] : null;
+  
+  console.log('🔍 Current bowler ID:', bowlerId);
+  console.log('🔍 Current bowler data:', currentBowler);
+  console.log('🔍 All bowlers stats:', innings.bowlersStats);
   
   const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
-  const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
+  const bowlerDisplayName = !bowlerId ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
   const firstInnings = match.innings[0];
   const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
@@ -1540,14 +1547,26 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   // ✅ NEW: Select new bowler
   const selectBowler = (playerId: string) => {
+    console.log('🎯 Selecting bowler:', playerId);
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     
-    if (!inn) return;
+    if (!inn) {
+      console.error('❌ Innings not found');
+      return;
+    }
     
+    // Set current bowler
     inn.currentBowler = playerId;
+    console.log('✅ Set currentBowler to:', playerId);
+    console.log('✅ Bowler stats:', inn.bowlersStats?.[playerId]);
+    
+    // Close modal
     setShowBowlerSelect(false);
+    
+    // Update parent
     onUpdate(newMatch);
+    console.log('✅ Match updated with new bowler');
   };
 
   // ✅ NEW: Handle undo
@@ -1897,6 +1916,19 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           .filter(e => e.over === innings.overs - 1)
           .map(e => e.bowlerId)[0] || '';
         
+        // ✅ Get available bowlers (excluding current and last over's bowler)
+        const availableBowlers = bowlingTeam.players.filter(p => {
+          // Exclude current bowler (if any)
+          if (innings.currentBowler && p.id === innings.currentBowler) return false;
+          // Exclude last over's bowler (1 over gap rule)
+          if (lastOverBowlerId && p.id === lastOverBowlerId) return false;
+          return true;
+        });
+        
+        console.log('🎯 Available bowlers:', availableBowlers.map(p => p.name));
+        console.log('🚫 Current bowler:', innings.currentBowler);
+        console.log('🚫 Last over bowler:', lastOverBowlerId);
+        
         return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-96 overflow-y-auto">
@@ -1907,9 +1939,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
               </p>
             )}
             <div className="space-y-2">
-              {bowlingTeam.players
-                .filter(p => p.id !== innings.currentBowler && p.id !== lastOverBowlerId)
-                .map(p => (
+              {availableBowlers.map(p => (
                 <div key={p.id} className="flex items-center gap-2">
                   <input 
                     type="radio" 
