@@ -1274,20 +1274,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
   const [pendingBowlerSelect, setPendingBowlerSelect] = useState(false);
   
-  // ✅ CRITICAL FIX: Use local state for match data to ensure immediate updates
-  const [currentMatch, setCurrentMatch] = useState<Match>(match);
-  
-  // ✅ Use ref to store latest match state for synchronous access
+  // ✅ CRITICAL FIX: Use ref as the single source of truth
   const matchRef = useRef<Match>(match);
   
-  // Update both state and ref when match prop changes
+  // ✅ Only update ref when parent prop changes (not during our own updates)
   useEffect(() => {
-    setCurrentMatch(match);
     matchRef.current = match;
   }, [match]);
 
-  // ✅ Use local state
-  const innings = currentMatch.innings?.[currentMatch.currentInnings];
+  // ✅ Use ref directly - no state needed
+  const innings = matchRef.current.innings?.[matchRef.current.currentInnings];
   
   if (!innings) {
     return (
@@ -1301,8 +1297,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  const battingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team1 : currentMatch.team2;
-  const bowlingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team2 : currentMatch.team1;
+  const battingTeam = matchRef.current.battingFirst === matchRef.current.team1.id ? matchRef.current.team1 : matchRef.current.team2;
+  const bowlingTeam = matchRef.current.battingFirst === matchRef.current.team1.id ? matchRef.current.team2 : matchRef.current.team1;
   
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
@@ -1315,15 +1311,15 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
   const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
-  const firstInnings = currentMatch.innings[0];
-  const target = currentMatch.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
+  const firstInnings = matchRef.current.innings[0];
+  const target = matchRef.current.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
   const remaining = target !== null ? target - innings.runs : null;
-  const ballsRemaining = (currentMatch.totalOvers * 6) - (innings.overs * 6 + innings.balls);
+  const ballsRemaining = (matchRef.current.totalOvers * 6) - (innings.overs * 6 + innings.balls);
   const totalBallsBowled = innings.overs + innings.balls / 6;
   const runRate = totalBallsBowled > 0 ? (innings.runs / totalBallsBowled).toFixed(2) : '0.00';
   const reqRunRate = remaining !== null && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
 
-  const getTeamName = (teamId: string) => teamId === currentMatch.team1.id ? currentMatch.team1.name : currentMatch.team2.name;
+  const getTeamName = (teamId: string) => teamId === matchRef.current.team1.id ? matchRef.current.team1.name : matchRef.current.team2.name;
 
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
     const newMatch = JSON.parse(JSON.stringify(matchRef.current)) as Match;
