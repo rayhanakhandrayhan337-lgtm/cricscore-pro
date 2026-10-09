@@ -249,7 +249,7 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
               📤 Export All Matches (JSON)
             </button>
             <button 
-              onClick={() => {
+              onClick={async () => {
                 try {
                   const { exportMatchesToCSV } = require('./exportImport');
                   const matches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
@@ -270,30 +270,33 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
             >
               📊 Export All Matches (CSV)
             </button>
-            <label className="w-full bg-purple-600 py-2 rounded-lg font-bold hover:bg-purple-700 text-sm text-center cursor-pointer block">
-              📥 Import Matches from File
-              <input 
-                type="file" 
-                accept=".json" 
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  try {
-                    const { importMatchesFromJSON } = require('./exportImport');
-                    const importedMatches = await importMatchesFromJSON(file);
-                    const existingMatches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
-                    const mergedMatches = [...existingMatches, ...importedMatches];
-                    localStorage.setItem('cric_matches', JSON.stringify(mergedMatches));
-                    setMessage(`✅ ${importedMatches.length} matches imported!`);
-                    setTimeout(() => setMessage(''), 3000);
-                  } catch (err: any) {
-                    setError('Failed to import: ' + err.message);
+            <button 
+              onClick={async () => {
+                try {
+                  const { exportMatchToPDF } = require('./exportImport');
+                  const matches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
+                  const completedMatches = matches.filter((m: any) => m.status === 'completed');
+                  
+                  if (completedMatches.length === 0) {
+                    setError('No completed matches to export');
                     setTimeout(() => setError(''), 3000);
+                    return;
                   }
-                }}
-              />
-            </label>
+                  
+                  // Export latest completed match
+                  const latestMatch = completedMatches[completedMatches.length - 1];
+                  await exportMatchToPDF(latestMatch);
+                  setMessage(`✅ Match summary exported to PDF!`);
+                  setTimeout(() => setMessage(''), 3000);
+                } catch (err: any) {
+                  setError('Failed to export PDF: ' + err.message);
+                  setTimeout(() => setError(''), 3000);
+                }
+              }}
+              className="w-full bg-red-600 py-2 rounded-lg font-bold hover:bg-red-700 text-sm"
+            >
+              📄 Export Latest Match (PDF)
+            </button>
           </div>
         </div>
 
@@ -1072,11 +1075,25 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   // ✅ SIMPLIFIED: Only UI state, no match data state
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
+  const [showOpeningSelection, setShowOpeningSelection] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
 
   // ✅ Use match prop directly - parent is source of truth
   const innings = match.innings?.[match.currentInnings];
+  
+  // Check if opening selection is needed
+  useEffect(() => {
+    if (innings && innings.overs === 0 && innings.balls === 0 && innings.wickets === 0) {
+      // First ball of the match - show opening selection
+      const strikerId = innings.currentBatsmen?.[0];
+      const bowlerId = innings.currentBowler;
+      
+      if (!strikerId || !bowlerId) {
+        setShowOpeningSelection(true);
+      }
+    }
+  }, [innings]);
   
   if (!innings) {
     return (
@@ -1413,6 +1430,104 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           <p className="text-gray-300">{getTeamName(firstInn.bowlingTeamId)} needs {firstInn.runs + 1} runs to win</p>
           <button onClick={startSecondInnings} className="bg-green-600 px-8 py-3 rounded-lg font-bold text-lg hover:bg-green-700">
             Start 2nd Innings →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Opening selection screen
+  if (showOpeningSelection) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="text-center mb-6">
+          <div className="text-5xl mb-3">🏏</div>
+          <h2 className="text-2xl font-bold">Select Opening Players</h2>
+          <p className="text-gray-400 mt-2">Choose opening batsmen and bowler</p>
+        </div>
+
+        <div className="space-y-6">
+          {/* Opening Batsmen Selection */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h3 className="font-bold text-lg mb-3 text-green-400">🏏 Opening Batsmen</h3>
+            <div className="space-y-2">
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Striker</label>
+                <select 
+                  id="opening-striker"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none"
+                  defaultValue={innings.currentBatsmen?.[0] || ''}
+                >
+                  <option value="">Select Opening Batsman</option>
+                  {battingTeam.players.map(player => (
+                    <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Non-Striker</label>
+                <select 
+                  id="opening-non-striker"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-green-500 focus:outline-none"
+                  defaultValue={innings.currentBatsmen?.[1] || ''}
+                >
+                  <option value="">Select Non-Striker</option>
+                  {battingTeam.players.map(player => (
+                    <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Opening Bowler Selection */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h3 className="font-bold text-lg mb-3 text-purple-400">⚾ Opening Bowler</h3>
+            <select 
+              id="opening-bowler"
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:border-purple-500 focus:outline-none"
+              defaultValue={innings.currentBowler || ''}
+            >
+              <option value="">Select Opening Bowler</option>
+              {bowlingTeam.players.map(player => (
+                <option key={player.id} value={player.id}>{player.name} ({player.role})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Start Button */}
+          <button 
+            onClick={() => {
+              const strikerSelect = document.getElementById('opening-striker') as HTMLSelectElement;
+              const nonStrikerSelect = document.getElementById('opening-non-striker') as HTMLSelectElement;
+              const bowlerSelect = document.getElementById('opening-bowler') as HTMLSelectElement;
+
+              const strikerId = strikerSelect.value;
+              const nonStrikerId = nonStrikerSelect.value;
+              const bowlerId = bowlerSelect.value;
+
+              if (!strikerId || !nonStrikerId || !bowlerId) {
+                alert('Please select all opening players');
+                return;
+              }
+
+              if (strikerId === nonStrikerId) {
+                alert('Striker and Non-Striker cannot be the same');
+                return;
+              }
+
+              const newMatch = JSON.parse(JSON.stringify(match)) as Match;
+              const inn = newMatch.innings[newMatch.currentInnings];
+              
+              inn.currentBatsmen = [strikerId, nonStrikerId];
+              inn.currentBowler = bowlerId;
+
+              setShowOpeningSelection(false);
+              onUpdate(newMatch);
+            }}
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-4 rounded-lg font-bold text-lg hover:from-green-600 hover:to-emerald-700 shadow-lg"
+          >
+            🏏 Start Match
           </button>
         </div>
       </div>
