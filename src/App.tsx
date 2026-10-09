@@ -607,13 +607,31 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
                 <div className="flex gap-2">
                   <button 
                     onClick={() => handleShare(m)} 
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all duration-200 flex items-center gap-1"
+                    className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 transform hover:scale-105 active:scale-95"
                   >
-                    <span>📤</span>
+                    <svg className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
                     <span>Share</span>
                   </button>
-                  <button onClick={() => setBroadcastMatch(m)} className="bg-purple-600 px-2 py-1 rounded text-xs hover:bg-purple-700">📹</button>
-                  <button onClick={() => handleDelete(m.id)} className="bg-red-600 px-2 py-1 rounded text-xs hover:bg-red-700">🗑️</button>
+                  <button 
+                    onClick={() => setBroadcastMatch(m)} 
+                    className="group bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                    title="Broadcast"
+                  >
+                    <svg className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(m.id)} 
+                    className="group bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                    title="Delete"
+                  >
+                    <svg className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               </div>
               <div className="mb-2">
@@ -1511,40 +1529,50 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const selectNewBatsman = (playerId: string) => {
     console.log('🔄 Selecting new batsman:', playerId, 'Position:', newBatsmanPosition);
+    
+    // ✅ Create fresh copy of current match
     const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
+    
     if (!inn) {
       console.error('❌ Innings not found');
       return;
     }
     
-    // Update current batsman based on position
+    // ✅ Update current batsman based on position
     if (newBatsmanPosition === 'striker') {
       inn.currentBatsmen[0] = playerId;
+      console.log('✅ Set striker:', playerId);
     } else {
       inn.currentBatsmen[1] = playerId;
+      console.log('✅ Set non-striker:', playerId);
     }
     
     console.log('✅ Updated currentBatsmen:', inn.currentBatsmen);
     
-    // Close modal
+    // ✅ Close modal first
     setShowNewBatsman(false);
     
     // ✅ CRITICAL: Update local state immediately
     setCurrentMatch(newMatch);
     
-    // Update parent
+    // ✅ Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new batsman');
     
     // ✅ If this was last ball of over, now show bowler selection
     if (pendingBowlerSelect) {
+      console.log('✅ Pending bowler select - showing bowler modal');
       setPendingBowlerSelect(false);
+      
       // Swap batsmen for new over
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
       inn.currentBowler = '';
+      
       setCurrentMatch(newMatch);
       onUpdate(newMatch);
+      
+      // Show bowler selection modal
       setShowBowlerSelect(true);
     }
   };
@@ -2042,20 +2070,24 @@ function MatchSummaryScreen({ match, onBack }: { match: Match; onBack: () => voi
       <div className="bg-gradient-to-r from-green-800 to-emerald-900 px-4 py-4 flex items-center justify-between">
         <button onClick={onBack} className="text-white text-xl">←</button>
         <h1 className="font-bold">Match Summary</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button 
             onClick={handleShare} 
-            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white w-10 h-10 rounded-lg font-semibold shadow-lg transition-all duration-200 flex items-center justify-center"
-            title="Share"
+            className="group relative bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 hover:from-blue-600 hover:via-blue-700 hover:to-indigo-800 text-white w-12 h-12 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center transform hover:scale-110 active:scale-95"
+            title="Share to Social Media"
           >
-            📤
+            <svg className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
           </button>
           <button 
             onClick={handleDownload} 
-            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white w-10 h-10 rounded-lg font-semibold shadow-lg transition-all duration-200 flex items-center justify-center"
-            title="Download"
+            className="group relative bg-gradient-to-br from-purple-500 via-purple-600 to-pink-700 hover:from-purple-600 hover:via-purple-700 hover:to-pink-800 text-white w-12 h-12 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center transform hover:scale-110 active:scale-95"
+            title="Download Match Summary"
           >
-            📥
+            <svg className="w-6 h-6 group-hover:translate-y-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
           </button>
         </div>
       </div>
