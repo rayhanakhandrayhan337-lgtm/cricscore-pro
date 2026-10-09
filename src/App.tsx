@@ -1274,18 +1274,22 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
   const [pendingBowlerSelect, setPendingBowlerSelect] = useState(false);
   
-  // ✅ CRITICAL FIX: Use both state (for re-renders) and ref (for sync access)
+  // ✅ CRITICAL FIX: Use state for rendering, ref for sync access
   const [currentMatch, setCurrentMatch] = useState<Match>(match);
   const matchRef = useRef<Match>(match);
   
-  // ✅ Only sync from parent when match prop actually changes
+  // ✅ Track if we're updating internally
+  const isInternalUpdate = useRef(false);
+  
+  // ✅ Only sync from parent when it's NOT our own update
   useEffect(() => {
-    // Only update if parent sent a different match (not our own updates)
-    if (match.id !== matchRef.current.id || 
-        JSON.stringify(match) !== JSON.stringify(matchRef.current)) {
+    if (!isInternalUpdate.current) {
+      // Parent sent a new match (not from our updates)
       matchRef.current = match;
       setCurrentMatch(match);
     }
+    // Reset flag for next update
+    isInternalUpdate.current = false;
   }, [match]);
 
   // ✅ Use state for rendering
@@ -1410,6 +1414,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         
         // ✅ CRITICAL: Update ref immediately for synchronous access
         matchRef.current = newMatch;
+        isInternalUpdate.current = true; // Mark as internal update
         
         // ✅ Update local state immediately
         setCurrentMatch(newMatch);
@@ -1438,6 +1443,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         
         // ✅ CRITICAL: Update ref immediately for synchronous access
         matchRef.current = newMatch;
+        isInternalUpdate.current = true; // Mark as internal update
         
         // ✅ Update local state immediately
         setCurrentMatch(newMatch);
@@ -1456,6 +1462,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
     // ✅ Update ref immediately
     matchRef.current = newMatch;
+    isInternalUpdate.current = true; // Mark as internal update
     setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
@@ -1465,10 +1472,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     
     // ✅ Update both ref and state
     matchRef.current = newMatch;
+    isInternalUpdate.current = true; // Mark as internal update
     
     if (newMatch.currentInnings === 0) {
       console.log('✅ 1st innings completed, showing innings break');
       setInningBreak(true);
+      isInternalUpdate.current = true; // Mark as internal update
       setCurrentMatch(newMatch);
       onUpdate(newMatch);
     } else {
@@ -1497,6 +1506,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
       
       setShowMatchComplete(true);
+      isInternalUpdate.current = true; // Mark as internal update
       setCurrentMatch(newMatch);
       onUpdate(newMatch);
     }
@@ -1542,6 +1552,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     
     // ✅ Update both ref and state
     matchRef.current = newMatch;
+    isInternalUpdate.current = true; // Mark as internal update
     setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
@@ -1574,6 +1585,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     
     // ✅ CRITICAL: Update both ref and state immediately
     matchRef.current = newMatch;
+    isInternalUpdate.current = true; // Mark as internal update
     setCurrentMatch(newMatch);
     
     // ✅ Update parent
@@ -1591,6 +1603,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       
       // ✅ Update both ref and state
       matchRef.current = newMatch;
+      isInternalUpdate.current = true; // Mark as internal update
       setCurrentMatch(newMatch);
       onUpdate(newMatch);
       
@@ -1620,6 +1633,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     
     // ✅ CRITICAL: Update both ref and state immediately
     matchRef.current = newMatch;
+    isInternalUpdate.current = true; // Mark as internal update
     setCurrentMatch(newMatch);
     
     // Update parent
@@ -1670,6 +1684,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
     // ✅ Update ref immediately
     matchRef.current = newMatch;
+    isInternalUpdate.current = true; // Mark as internal update
     setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
@@ -1800,6 +1815,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
               
               // ✅ Update both ref and state
               matchRef.current = newMatch;
+              isInternalUpdate.current = true; // Mark as internal update
               setCurrentMatch(newMatch);
               onUpdate(newMatch);
             }}
@@ -1889,6 +1905,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
                 
                 // ✅ Update both ref and state
                 matchRef.current = newMatch;
+                isInternalUpdate.current = true; // Mark as internal update
                 setCurrentMatch(newMatch);
                 onUpdate(newMatch);
               }
