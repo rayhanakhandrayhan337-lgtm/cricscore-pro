@@ -114,7 +114,33 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
   const [confirmPass, setConfirmPass] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [theme, setTheme] = useState<'dark' | 'light'>(
+    (localStorage.getItem('cric_theme') as 'dark' | 'light') || 'dark'
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('cric_theme', newTheme);
+    // Apply theme to document
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('light-mode');
+    } else {
+      document.documentElement.classList.remove('light-mode');
+    }
+    setMessage(`Theme changed to ${newTheme} mode!`);
+    setTimeout(() => setMessage(''), 2000);
+  };
+
+  // Apply theme on mount
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-mode');
+    } else {
+      document.documentElement.classList.remove('light-mode');
+    }
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -254,6 +280,24 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
               📥 Download Latest Match Summary (PDF)
             </button>
           </div>
+        </div>
+
+        {/* Theme Toggle */}
+        <div className="bg-gray-800 rounded-xl p-4">
+          <h3 className="font-bold mb-3">🎨 App Theme</h3>
+          <button 
+            onClick={toggleTheme}
+            className={`w-full py-3 rounded-lg font-bold transition-all ${
+              theme === 'dark' 
+                ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                : 'bg-white hover:bg-gray-100 text-gray-900 border-2 border-gray-300'
+            }`}
+          >
+            {theme === 'dark' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+          </button>
+          <p className="text-xs text-gray-400 mt-2 text-center">
+            Current: {theme === 'dark' ? 'Dark' : 'Light'} Mode
+          </p>
         </div>
 
         {/* Logout */}
@@ -1160,6 +1204,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const [show2ndInningsSelection, setShow2ndInningsSelection] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
+  const [newBatsmanPosition, setNewBatsmanPosition] = useState<'striker' | 'nonStriker'>('striker');
 
   // ✅ Use match prop directly - parent is source of truth
   const innings = match.innings?.[match.currentInnings];
@@ -1268,8 +1313,22 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
-        // Clear current batsman so UI shows "Selecting..."
-        inn.currentBatsmen[0] = '';
+        // Check if this is the last ball of the over
+        const isLastBallOfOver = (inn.balls === 5); // 0-indexed, so 5 means 6th ball
+        
+        if (isLastBallOfOver) {
+          // Last ball of over - no strike rotation, new batsman will be striker
+          inn.currentBatsmen[0] = '';
+          setNewBatsmanPosition('striker');
+        } else {
+          // Not last ball - strike rotation will happen, new batsman will be non-striker
+          // Swap current batsmen first
+          inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
+          // Now clear the new non-striker position (which was the striker)
+          inn.currentBatsmen[1] = '';
+          setNewBatsmanPosition('nonStriker');
+        }
+        
         // Update parent immediately
         onUpdate(newMatch);
         // Show modal for new batsman selection
@@ -1386,7 +1445,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   };
 
   const selectNewBatsman = (playerId: string) => {
-    console.log('🔄 Selecting new batsman:', playerId);
+    console.log('🔄 Selecting new batsman:', playerId, 'Position:', newBatsmanPosition);
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
@@ -1394,8 +1453,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       return;
     }
     
-    // Update current batsman
-    inn.currentBatsmen = [playerId, inn.currentBatsmen[1]];
+    // Update current batsman based on position
+    if (newBatsmanPosition === 'striker') {
+      inn.currentBatsmen[0] = playerId;
+    } else {
+      inn.currentBatsmen[1] = playerId;
+    }
+    
     console.log('✅ Updated currentBatsmen:', inn.currentBatsmen);
     
     // Close modal
@@ -1745,17 +1809,38 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       {/* Bowler Selection Modal */}
       {showBowlerSelect && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-80 overflow-y-auto">
+          <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-96 overflow-y-auto">
             <h3 className="font-bold text-lg mb-3">⚾ Select Bowler for Over {innings.overs + 1}</h3>
             <div className="space-y-2">
               {bowlingTeam.players.filter(p => p.id !== innings.currentBowler).map(p => (
-                <button key={p.id} onClick={() => selectBowler(p.id)}
-                  className="w-full bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg text-left flex justify-between items-center">
-                  <span>{p.name}</span>
-                  <span className="text-xs text-gray-400">{p.role}</span>
-                </button>
+                <div key={p.id} className="flex items-center gap-2">
+                  <input 
+                    type="radio" 
+                    name="bowler-select" 
+                    id={`bowler-${p.id}`}
+                    className="w-5 h-5"
+                  />
+                  <label htmlFor={`bowler-${p.id}`} className="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg text-left flex justify-between items-center cursor-pointer">
+                    <span>{p.name}</span>
+                    <span className="text-xs text-gray-400">{p.role}</span>
+                  </label>
+                </div>
               ))}
             </div>
+            <button 
+              onClick={() => {
+                const selectedRadio = document.querySelector('input[name="bowler-select"]:checked') as HTMLInputElement;
+                if (selectedRadio) {
+                  const bowlerId = selectedRadio.id.replace('bowler-', '');
+                  selectBowler(bowlerId);
+                } else {
+                  alert('Please select a bowler');
+                }
+              }}
+              className="w-full mt-4 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-bold"
+            >
+              ✓ Add Bowler
+            </button>
           </div>
         </div>
       )}
@@ -1763,17 +1848,40 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       {/* New Batsman Modal */}
       {showNewBatsman && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-80 overflow-y-auto">
-            <h3 className="font-bold text-lg mb-3">🏏 Select New Batsman</h3>
+          <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm max-h-96 overflow-y-auto">
+            <h3 className="font-bold text-lg mb-3">
+              🏏 Select New Batsman ({newBatsmanPosition === 'striker' ? 'Striker' : 'Non-Striker'})
+            </h3>
             <div className="space-y-2">
               {battingTeam.players.filter(p => !innings.batsmenStats?.[p.id]?.isOut && !innings.currentBatsmen.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => selectNewBatsman(p.id)}
-                  className="w-full bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg text-left flex justify-between items-center">
-                  <span>{p.name}</span>
-                  <span className="text-xs text-gray-400">{p.role}</span>
-                </button>
+                <div key={p.id} className="flex items-center gap-2">
+                  <input 
+                    type="radio" 
+                    name="batsman-select" 
+                    id={`batsman-${p.id}`}
+                    className="w-5 h-5"
+                  />
+                  <label htmlFor={`batsman-${p.id}`} className="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg text-left flex justify-between items-center cursor-pointer">
+                    <span>{p.name}</span>
+                    <span className="text-xs text-gray-400">{p.role}</span>
+                  </label>
+                </div>
               ))}
             </div>
+            <button 
+              onClick={() => {
+                const selectedRadio = document.querySelector('input[name="batsman-select"]:checked') as HTMLInputElement;
+                if (selectedRadio) {
+                  const batsmanId = selectedRadio.id.replace('batsman-', '');
+                  selectNewBatsman(batsmanId);
+                } else {
+                  alert('Please select a batsman');
+                }
+              }}
+              className="w-full mt-4 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-bold"
+            >
+              ✓ Add Batsman
+            </button>
           </div>
         </div>
       )}
