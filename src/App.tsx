@@ -221,17 +221,23 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
           </div>
         </div>
 
-        {/* Google Drive Integration */}
+        {/* Export/Import Integration */}
         <div className="bg-gray-800 rounded-xl p-4">
-          <h3 className="font-bold mb-3">☁️ Google Drive Backup</h3>
-          <p className="text-xs text-gray-400 mb-3">Save your match history to your personal Google Drive</p>
+          <h3 className="font-bold mb-3">💾 Data Backup</h3>
+          <p className="text-xs text-gray-400 mb-3">Export your matches to JSON/CSV or import from file</p>
           <div className="space-y-2">
             <button 
-              onClick={async () => {
+              onClick={() => {
                 try {
-                  const { exportAllMatchesToDrive } = await import('./drive');
-                  const count = await exportAllMatchesToDrive();
-                  setMessage(`✅ ${count} matches exported to Google Drive!`);
+                  const { exportMatchesToJSON } = require('./exportImport');
+                  const matches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
+                  if (matches.length === 0) {
+                    setError('No matches to export');
+                    setTimeout(() => setError(''), 3000);
+                    return;
+                  }
+                  exportMatchesToJSON(matches);
+                  setMessage(`✅ ${matches.length} matches exported to JSON!`);
                   setTimeout(() => setMessage(''), 3000);
                 } catch (err: any) {
                   setError('Failed to export: ' + err.message);
@@ -240,8 +246,54 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
               }}
               className="w-full bg-blue-600 py-2 rounded-lg font-bold hover:bg-blue-700 text-sm"
             >
-              📤 Export All Matches to Drive
+              📤 Export All Matches (JSON)
             </button>
+            <button 
+              onClick={() => {
+                try {
+                  const { exportMatchesToCSV } = require('./exportImport');
+                  const matches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
+                  if (matches.length === 0) {
+                    setError('No matches to export');
+                    setTimeout(() => setError(''), 3000);
+                    return;
+                  }
+                  exportMatchesToCSV(matches);
+                  setMessage(`✅ ${matches.length} matches exported to CSV!`);
+                  setTimeout(() => setMessage(''), 3000);
+                } catch (err: any) {
+                  setError('Failed to export: ' + err.message);
+                  setTimeout(() => setError(''), 3000);
+                }
+              }}
+              className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 text-sm"
+            >
+              📊 Export All Matches (CSV)
+            </button>
+            <label className="w-full bg-purple-600 py-2 rounded-lg font-bold hover:bg-purple-700 text-sm text-center cursor-pointer block">
+              📥 Import Matches from File
+              <input 
+                type="file" 
+                accept=".json" 
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const { importMatchesFromJSON } = require('./exportImport');
+                    const importedMatches = await importMatchesFromJSON(file);
+                    const existingMatches = JSON.parse(localStorage.getItem('cric_matches') || '[]');
+                    const mergedMatches = [...existingMatches, ...importedMatches];
+                    localStorage.setItem('cric_matches', JSON.stringify(mergedMatches));
+                    setMessage(`✅ ${importedMatches.length} matches imported!`);
+                    setTimeout(() => setMessage(''), 3000);
+                  } catch (err: any) {
+                    setError('Failed to import: ' + err.message);
+                    setTimeout(() => setError(''), 3000);
+                  }
+                }}
+              />
+            </label>
           </div>
         </div>
 
@@ -1015,24 +1067,16 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   );
 }
 
-// ============= LIVE SCORING SCREEN =============
+// ============= LIVE SCORING SCREEN - COMPLETELY NEW IMPLEMENTATION =============
 function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: () => void; onUpdate: (m: Match) => void }) {
-  // ALL hooks must be at the top before any conditional returns
+  // ✅ SIMPLIFIED: Only UI state, no match data state
   const [showBowlerSelect, setShowBowlerSelect] = useState(false);
   const [showNewBatsman, setShowNewBatsman] = useState(false);
   const [inningBreak, setInningBreak] = useState(false);
   const [showMatchComplete, setShowMatchComplete] = useState(false);
-  
-  // ✅ NEW: Local state to hold the latest match data
-  const [currentMatch, setCurrentMatch] = useState<Match>(match);
-  
-  // Update local state when match prop changes
-  useEffect(() => {
-    setCurrentMatch(match);
-  }, [match]);
 
-  // Use local state
-  const innings = currentMatch.innings?.[currentMatch.currentInnings];
+  // ✅ Use match prop directly - parent is source of truth
+  const innings = match.innings?.[match.currentInnings];
   
   if (!innings) {
     return (
@@ -1046,8 +1090,8 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     );
   }
 
-  const battingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team1 : currentMatch.team2;
-  const bowlingTeam = currentMatch.battingFirst === currentMatch.team1.id ? currentMatch.team2 : currentMatch.team1;
+  const battingTeam = match.battingFirst === match.team1.id ? match.team1 : match.team2;
+  const bowlingTeam = match.battingFirst === match.team1.id ? match.team2 : match.team1;
   
   // Get batsman/bowler info - show pending state when modal is open
   const strikerId = innings.currentBatsmen?.[0];
@@ -1060,18 +1104,18 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const strikerDisplayName = !strikerId ? '⏳ Selecting new batsman...' : (striker?.playerName || 'No batsman');
   const bowlerDisplayName = !innings.currentBowler ? '⏳ Selecting new bowler...' : (currentBowler?.playerName || 'No bowler');
 
-  const firstInnings = currentMatch.innings[0];
-  const target = currentMatch.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
+  const firstInnings = match.innings[0];
+  const target = match.currentInnings === 1 && firstInnings ? firstInnings.runs + 1 : null;
   const remaining = target !== null ? target - innings.runs : null;
-  const ballsRemaining = (currentMatch.totalOvers * 6) - (innings.overs * 6 + innings.balls);
+  const ballsRemaining = (match.totalOvers * 6) - (innings.overs * 6 + innings.balls);
   const totalBallsBowled = innings.overs + innings.balls / 6;
   const runRate = totalBallsBowled > 0 ? (innings.runs / totalBallsBowled).toFixed(2) : '0.00';
   const reqRunRate = remaining !== null && ballsRemaining > 0 ? (remaining / (ballsRemaining / 6)).toFixed(2) : null;
 
-  const getTeamName = (teamId: string) => teamId === currentMatch.team1.id ? currentMatch.team1.name : currentMatch.team2.name;
+  const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
 
   const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
-    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) return;
     
@@ -1140,9 +1184,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       } else {
         // Clear current batsman so UI shows "Selecting..."
         inn.currentBatsmen[0] = '';
-        // Update local state immediately
-        setCurrentMatch(newMatch);
-        // Update parent
+        // Update parent immediately
         onUpdate(newMatch);
         // Show modal for new batsman selection
         setShowNewBatsman(true);
@@ -1157,16 +1199,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // End of over - rotate strike and select new bowler
     if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
-      if (inn.overs >= currentMatch.totalOvers) {
+      if (inn.overs >= match.totalOvers) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
         // Clear current bowler so UI shows "Selecting..."
         inn.currentBowler = '';
-        // Update local state immediately
-        setCurrentMatch(newMatch);
-        // Update parent
+        // Update parent immediately
         onUpdate(newMatch);
         // Show modal for new bowler selection
         setShowBowlerSelect(true);
@@ -1188,7 +1228,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     if (newMatch.currentInnings === 0) {
       console.log('✅ 1st innings completed, showing innings break');
       setInningBreak(true);
-      setCurrentMatch(newMatch);
       onUpdate(newMatch);
     } else {
       console.log('✅ 2nd innings completed, match finished');
@@ -1216,13 +1255,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       }
       
       setShowMatchComplete(true);
-      setCurrentMatch(newMatch);
       onUpdate(newMatch);
     }
   };
 
   const startSecondInnings = () => {
-    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const firstInnings = newMatch.innings[0];
     if (!firstInnings) return;
     const secondBattingTeamId = firstInnings.bowlingTeamId;
@@ -1257,13 +1295,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     newMatch.innings.push(innings2);
     newMatch.currentInnings = 1;
     setInningBreak(false);
-    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
   const selectNewBatsman = (playerId: string) => {
     console.log('🔄 Selecting new batsman:', playerId);
-    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
       console.error('❌ Innings not found');
@@ -1277,9 +1314,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowNewBatsman(false);
     
-    // ✅ Update local state immediately
-    setCurrentMatch(newMatch);
-    
     // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new batsman');
@@ -1287,7 +1321,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   const selectBowler = (playerId: string) => {
     console.log('🔄 Selecting new bowler:', playerId);
-    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) {
       console.error('❌ Innings not found');
@@ -1301,16 +1335,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Close modal
     setShowBowlerSelect(false);
     
-    // ✅ Update local state immediately
-    setCurrentMatch(newMatch);
-    
     // Update parent
     onUpdate(newMatch);
     console.log('✅ Match updated with new bowler');
   };
 
   const handleUndo = () => {
-    const newMatch = JSON.parse(JSON.stringify(currentMatch)) as Match;
+    const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn || !inn.ballEvents || inn.ballEvents.length === 0) return;
     
@@ -1350,18 +1381,17 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.wickets -= 1;
     }
 
-    setCurrentMatch(newMatch);
     onUpdate(newMatch);
   };
 
   // Match Complete Screen
-  if (showMatchComplete || currentMatch.status === 'completed') {
-    return <MatchSummaryScreen match={currentMatch} onBack={onBack} />;
+  if (showMatchComplete || match.status === 'completed') {
+    return <MatchSummaryScreen match={match} onBack={onBack} />;
   }
 
   // Innings break screen
   if (inningBreak) {
-    const firstInn = currentMatch.innings[0];
+    const firstInn = match.innings[0];
     if (!firstInn) {
       return (
         <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
