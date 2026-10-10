@@ -442,7 +442,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-blue-950 border-t border-blue-800 flex shadow-2xl">
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-purple-950 to-violet-900 border-t border-purple-700 flex shadow-2xl">
         {tabs.map((t, i) => (
           <button 
             key={i} 
@@ -450,7 +450,7 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
             className={`flex-1 py-3 flex flex-col items-center gap-1.5 transition-all relative ${
               tab === i 
                 ? 'text-white' 
-                : 'text-red-700 hover:text-red-500'
+                : 'text-purple-300 hover:text-white'
             }`}
           >
             {tab === i && (
@@ -458,8 +458,8 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
             )}
             <div className={`p-2 rounded-xl transition-all ${
               tab === i 
-                ? 'bg-white/10 shadow-lg' 
-                : 'bg-red-500/10'
+                ? 'bg-white/20 shadow-lg' 
+                : 'bg-purple-500/20'
             }`}>
               {i === 0 && (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -623,16 +623,16 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
       </div>
       
       <div className="flex items-center gap-2 mb-4">
-        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        <span className="text-xs text-blue-400 font-medium">{match.venue}</span>
+        <span className="text-xs text-green-400 font-medium">{match.venue}</span>
       </div>
       
       <div className="space-y-3">
         <div className="flex justify-between items-center bg-gray-700/30 rounded-xl p-3 group-hover:bg-gray-700/50 transition-all">
-          <span className={`text-lg font-black bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent`}>
+          <span className={`text-lg font-black bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent`}>
             {match.team1.name}
           </span>
           <span className="text-xl font-bold text-yellow-400 font-mono tracking-wider">
@@ -641,7 +641,7 @@ function MatchCard({ match, onClick, onDelete }: { match: Match; onClick: () => 
         </div>
         
         <div className="flex justify-between items-center bg-gray-700/30 rounded-xl p-3 group-hover:bg-gray-700/50 transition-all">
-          <span className={`text-lg font-black bg-gradient-to-r from-cyan-400 to-blue-600 bg-clip-text text-transparent`}>
+          <span className={`text-lg font-black bg-gradient-to-r from-teal-400 to-cyan-500 bg-clip-text text-transparent`}>
             {match.team2.name}
           </span>
           <span className="text-xl font-bold text-yellow-400 font-mono tracking-wider">
