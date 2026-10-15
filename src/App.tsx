@@ -1282,19 +1282,45 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat');
   const [step, setStep] = useState(1);
 
-  const [leagueTeam1Id, setLeagueTeam1Id] = useState<string>('');
-  const [leagueTeam2Id, setLeagueTeam2Id] = useState<string>('');
+  const [selectedTeam1Id, setSelectedTeam1Id] = useState<string>('');
+  const [selectedTeam2Id, setSelectedTeam2Id] = useState<string>('');
 
+  // ✅ When league is provided, show dropdown for team selection
   useEffect(() => {
-    if (league) {
-      setTeam1Name(league.teams[0]?.name || '');
-      setTeam2Name(league.teams[1]?.name || '');
-      setTeam1Players(league.teams[0]?.players || []);
-      setTeam2Players(league.teams[1]?.players || []);
-      setLeagueTeam1Id(league.teams[0]?.id || '');
-      setLeagueTeam2Id(league.teams[1]?.id || '');
+    if (league && league.teams.length > 0) {
+      console.log('🏆 League loaded with teams:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
+      // Auto-select first two teams if available
+      if (league.teams.length >= 2) {
+        setSelectedTeam1Id(league.teams[0].id);
+        setSelectedTeam2Id(league.teams[1].id);
+        setTeam1Name(league.teams[0].name);
+        setTeam2Name(league.teams[1].name);
+        setTeam1Players(league.teams[0].players);
+        setTeam2Players(league.teams[1].players);
+      }
     }
   }, [league]);
+
+  // ✅ Handle team selection from dropdown
+  const handleTeam1Select = (teamId: string) => {
+    setSelectedTeam1Id(teamId);
+    const team = league?.teams.find(t => t.id === teamId);
+    if (team) {
+      setTeam1Name(team.name);
+      setTeam1Players(team.players);
+      console.log('🏆 Team 1 selected:', team.name, '- ID:', team.id);
+    }
+  };
+
+  const handleTeam2Select = (teamId: string) => {
+    setSelectedTeam2Id(teamId);
+    const team = league?.teams.find(t => t.id === teamId);
+    if (team) {
+      setTeam2Name(team.name);
+      setTeam2Players(team.players);
+      console.log('🏆 Team 2 selected:', team.name, '- ID:', team.id);
+    }
+  };
 
   const generatePlayers = (teamNum: number) => {
     const roles: Player['role'][] = ['batsman', 'batsman', 'batsman', 'batsman', 'allrounder', 'allrounder', 'wicketkeeper', 'bowler', 'bowler', 'bowler', 'bowler'];
@@ -1326,9 +1352,13 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 
     const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
     
-    // Use league team IDs if this is a league match, otherwise generate new IDs
-    const team1Id = league && leagueTeam1Id ? leagueTeam1Id : `t1_${Date.now()}`;
-    const team2Id = league && leagueTeam2Id ? leagueTeam2Id : `t2_${Date.now()}`;
+    // ✅ Use selected team IDs from dropdown
+    const team1Id = selectedTeam1Id || `t1_${Date.now()}`;
+    const team2Id = selectedTeam2Id || `t2_${Date.now()}`;
+    
+    console.log('🏆 Creating match with teams:');
+    console.log('🏆 Team 1:', team1Name, '- ID:', team1Id);
+    console.log('🏆 Team 2:', team2Name, '- ID:', team2Id);
     
     const team1: { id: string; name: string; players: Player[] } = { id: team1Id, name: team1Name, players: team1Players };
     const team2: { id: string; name: string; players: Player[] } = { id: team2Id, name: team2Name, players: team2Players };
@@ -1396,10 +1426,51 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
         {step === 1 && (
           <div className="space-y-4">
             <h3 className="font-bold text-lg">Match Details</h3>
-            <input type="text" placeholder="Team 1 Name" value={team1Name} onChange={e => setTeam1Name(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
-            <input type="text" placeholder="Team 2 Name" value={team2Name} onChange={e => setTeam2Name(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
+            
+            {/* ✅ Team Selection - Dropdown for League, Input for Custom */}
+            {league ? (
+              <>
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">Select Team 1</label>
+                  <select
+                    value={selectedTeam1Id}
+                    onChange={(e) => handleTeam1Select(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">-- Select Team 1 --</option>
+                    {league.teams.map(team => (
+                      <option key={team.id} value={team.id} disabled={team.id === selectedTeam2Id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">Select Team 2</label>
+                  <select
+                    value={selectedTeam2Id}
+                    onChange={(e) => handleTeam2Select(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">-- Select Team 2 --</option>
+                    {league.teams.map(team => (
+                      <option key={team.id} value={team.id} disabled={team.id === selectedTeam1Id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                <input type="text" placeholder="Team 1 Name" value={team1Name} onChange={e => setTeam1Name(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
+                <input type="text" placeholder="Team 2 Name" value={team2Name} onChange={e => setTeam2Name(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
+              </>
+            )}
+            
             <input type="text" placeholder="Venue" value={venue} onChange={e => setVenue(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
             <div>
@@ -3018,133 +3089,150 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
   );
 }
 
-// ============= LEAGUE STANDINGS UPDATE =============
+// ============= LEAGUE STANDINGS UPDATE - COMPLETELY REWRITTEN =============
 async function updateLeagueStandings(match: Match) {
+  console.log('\n🏆 ========================================');
+  console.log('🏆 LEAGUE STANDINGS UPDATE STARTED');
+  console.log('🏆 ========================================');
+  
   if (!match.leagueId) {
-    console.log('🏆 ❌ No league ID found in match');
+    console.log('❌ No league ID - skipping update');
     return;
   }
   
-  console.log('🏆 ========== LEAGUE STANDINGS UPDATE ==========');
-  console.log('🏆 Match ID:', match.id);
-  console.log('🏆 League ID:', match.leagueId);
-  
+  // Get league
   const leagues = getLeagues();
-  console.log('🏆 All leagues:', leagues.map(l => `${l.name} (${l.id})`).join(', '));
-  
   const league = leagues.find(l => l.id === match.leagueId);
+  
   if (!league) {
-    console.log('🏆 ❌ League not found!');
+    console.log('❌ League not found - ID:', match.leagueId);
     return;
   }
   
-  console.log('🏆 ✓ League found:', league.name);
-  console.log('🏆 League teams:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
-
+  console.log('✅ League found:', league.name);
+  console.log('📋 League has', league.teams.length, 'teams');
+  
+  // Get innings data
   const inn1 = match.innings?.[0];
   const inn2 = match.innings?.[1];
+  
   if (!inn1 || !inn2) {
-    console.log('🏆 ❌ Innings data missing!');
+    console.log('❌ Innings data missing');
     return;
   }
-
-  // ✅ Get team IDs from match (not innings)
-  const team1Id = match.team1.id;
-  const team2Id = match.team2.id;
   
-  // ✅ Also get team names for fallback matching
-  const team1Name = match.team1.name;
-  const team2Name = match.team2.name;
-
-  console.log('🏆 Match Team 1:', team1Name, '- ID:', team1Id);
-  console.log('🏆 Match Team 2:', team2Name, '- ID:', team2Id);
-  console.log('🏆 Innings 1 (batting first):', inn1.battingTeamId, '- Score:', inn1.runs);
-  console.log('🏆 Innings 2 (batting second):', inn2.battingTeamId, '- Score:', inn2.runs);
-
-  // ✅ Determine winner based on innings scores
-  let winnerId = '';
-  if ((inn2.runs || 0) > (inn1.runs || 0)) {
-    winnerId = inn2.battingTeamId;
-    console.log('🏆 Winner:', inn2.battingTeamId, '(Team 2 - batting second)');
-  } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
-    winnerId = inn1.battingTeamId;
-    console.log('🏆 Winner:', inn1.battingTeamId, '(Team 1 - batting first)');
+  // Get match teams
+  const matchTeam1 = match.team1;
+  const matchTeam2 = match.team2;
+  
+  console.log('\n📊 Match Details:');
+  console.log('  Team 1:', matchTeam1.name, '(ID:', matchTeam1.id + ')');
+  console.log('  Team 2:', matchTeam2.name, '(ID:', matchTeam2.id + ')');
+  console.log('  Innings 1 Score:', inn1.runs);
+  console.log('  Innings 2 Score:', inn2.runs);
+  
+  // Determine winner
+  let winnerTeamId = '';
+  let winnerTeamName = '';
+  
+  if (inn2.runs > inn1.runs) {
+    winnerTeamId = inn2.battingTeamId;
+    const winnerTeam = league.teams.find(t => t.id === winnerTeamId);
+    winnerTeamName = winnerTeam?.name || 'Unknown';
+    console.log('\n🏆 Winner:', winnerTeamName, '(batting second)');
+  } else if (inn1.runs > inn2.runs) {
+    winnerTeamId = inn1.battingTeamId;
+    const winnerTeam = league.teams.find(t => t.id === winnerTeamId);
+    winnerTeamName = winnerTeam?.name || 'Unknown';
+    console.log('\n🏆 Winner:', winnerTeamName, '(batting first)');
   } else {
-    console.log('🏆 Match Tied');
+    console.log('\n🤝 Match Tied');
   }
-
-  // ✅ Update only the teams that played
-  console.log('🏆 Starting team update loop...');
-  league.teams = league.teams.map(team => {
-    const t = { ...team };
+  
+  // Update league teams
+  console.log('\n🔄 Updating team statistics...');
+  
+  const updatedTeams = league.teams.map(team => {
+    const updatedTeam = { ...team };
     
-    // ✅ Match by ID OR by team name (fallback)
-    const isTeam1 = String(team.id).trim() === String(team1Id).trim() || 
-                    String(team.name).trim() === String(match.team1.name).trim();
-    const isTeam2 = String(team.id).trim() === String(team2Id).trim() || 
-                    String(team.name).trim() === String(match.team2.name).trim();
+    // Check if this team played in the match
+    const isTeam1 = team.id === matchTeam1.id || team.name === matchTeam1.name;
+    const isTeam2 = team.id === matchTeam2.id || team.name === matchTeam2.name;
     const playedInMatch = isTeam1 || isTeam2;
     
-    console.log(`🏆 Checking team: ${team.name}`);
-    console.log(`🏆   - Team ID: "${team.id}"`);
-    console.log(`🏆   - Match Team 1: "${match.team1.name}" (ID: "${team1Id}") - Match: ${isTeam1}`);
-    console.log(`🏆   - Match Team 2: "${match.team2.name}" (ID: "${team2Id}") - Match: ${isTeam2}`);
-    console.log(`🏆   - Played in this match: ${playedInMatch}`);
-    
-    if (playedInMatch) {
-      console.log(`🏆 ✓ UPDATING team: ${team.name}`);
-      
-      t.played += 1;
-      
-      // ✅ Get correct innings for this team
-      const myInnings = isTeam1 ? inn1 : inn2;
-      const oppInnings = isTeam1 ? inn2 : inn1;
-      
-      console.log(`🏆   - My innings: ${myInnings.runs} runs, ${myInnings.overs}.${myInnings.balls} overs`);
-      console.log(`🏆   - Opp innings: ${oppInnings.runs} runs, ${oppInnings.overs}.${oppInnings.balls} overs`);
-      
-      t.runsScored += (myInnings.runs || 0);
-      t.runsConceded += (oppInnings.runs || 0);
-      t.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
-      t.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
-
-      // ✅ Update win/loss/tie
-      const isWinner = String(winnerId).trim() === String(team.id).trim();
-      if (isWinner) {
-        t.won += 1;
-        t.points += 2;
-        console.log(`🏆   - 🏆 ${team.name} WON! Points: ${t.points}`);
-      } else if (winnerId) {
-        t.lost += 1;
-        console.log(`🏆   - 😞 ${team.name} LOST. Points: ${t.points}`);
-      } else {
-        // Match tied - both teams get 1 point
-        t.tied += 1;
-        t.points += 1;
-        console.log(`🏆   - 🤝 ${team.name} TIED. Points: ${t.points}`);
-      }
-
-      // ✅ Calculate NRR
-      if (t.oversBowled > 0 && t.oversPlayed > 0) {
-        t.nrr = (t.runsScored / t.oversBowled) - (t.runsConceded / t.oversPlayed);
-        console.log(`🏆   - 📊 NRR: ${t.nrr.toFixed(3)}`);
-      }
-      
-      console.log(`🏆   - Final stats: P=${t.played}, W=${t.won}, L=${t.lost}, T=${t.tied}, Pts=${t.points}, NRR=${t.nrr.toFixed(3)}`);
-    } else {
-      console.log(`🏆 ✗ SKIPPING team: ${team.name} - did not play in this match`);
+    if (!playedInMatch) {
+      console.log(`  ⏭️  ${team.name} - Did not play`);
+      return updatedTeam;
     }
     
-    return t;
+    console.log(`\n  ✓ ${team.name} - Played in match`);
+    
+    // Update played count
+    updatedTeam.played += 1;
+    
+    // Get innings data for this team
+    const myInnings = isTeam1 ? inn1 : inn2;
+    const oppInnings = isTeam1 ? inn2 : inn1;
+    
+    console.log(`    My Score: ${myInnings.runs} runs`);
+    console.log(`    Opp Score: ${oppInnings.runs} runs`);
+    
+    // Update runs
+    updatedTeam.runsScored += myInnings.runs;
+    updatedTeam.runsConceded += oppInnings.runs;
+    
+    // Update overs
+    const myOvers = myInnings.overs + (myInnings.balls / 6);
+    const oppOvers = oppInnings.overs + (oppInnings.balls / 6);
+    updatedTeam.oversPlayed += myOvers;
+    updatedTeam.oversBowled += oppOvers;
+    
+    // Update win/loss/tie
+    const isWinner = team.id === winnerTeamId || team.name === winnerTeamName;
+    
+    if (winnerTeamId === '') {
+      // Tied match
+      updatedTeam.tied += 1;
+      updatedTeam.points += 1;
+      console.log(`    Result: TIED (+1 point)`);
+    } else if (isWinner) {
+      updatedTeam.won += 1;
+      updatedTeam.points += 2;
+      console.log(`    Result: WON (+2 points)`);
+    } else {
+      updatedTeam.lost += 1;
+      console.log(`    Result: LOST (0 points)`);
+    }
+    
+    // Calculate NRR
+    if (updatedTeam.oversBowled > 0 && updatedTeam.oversPlayed > 0) {
+      updatedTeam.nrr = (updatedTeam.runsScored / updatedTeam.oversBowled) - 
+                        (updatedTeam.runsConceded / updatedTeam.oversPlayed);
+      console.log(`    NRR: ${updatedTeam.nrr.toFixed(3)}`);
+    }
+    
+    console.log(`    Total Points: ${updatedTeam.points}`);
+    
+    return updatedTeam;
   });
-
+  
+  // Save updated league
+  league.teams = updatedTeams;
   league.matches.push(match.id);
+  
   await saveLeague(league);
   
-  console.log('🏆 ========== FINAL STANDINGS ==========');
-  league.teams.forEach((team, idx) => {
-    console.log(`🏆 ${idx + 1}. ${team.name}: ${team.points} pts, ${team.won}W-${team.lost}L-${team.tied || 0}T, NRR: ${team.nrr.toFixed(3)}`);
+  console.log('\n📊 FINAL STANDINGS:');
+  const sortedTeams = [...updatedTeams].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.nrr !== a.nrr) return b.nrr - a.nrr;
+    return b.won - a.won;
   });
-  console.log('✅ League standings updated successfully');
-  console.log('🏆 =========================================');
+  
+  sortedTeams.forEach((team, idx) => {
+    console.log(`  ${idx + 1}. ${team.name}: ${team.points} pts (${team.won}W-${team.lost}L-${team.tied}T) NRR: ${team.nrr.toFixed(3)}`);
+  });
+  
+  console.log('\n✅ League standings updated successfully');
+  console.log('🏆 ========================================\n');
 }
