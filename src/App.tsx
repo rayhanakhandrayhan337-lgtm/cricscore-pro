@@ -219,6 +219,8 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
       const reader = new FileReader();
       reader.onloadend = () => {
         const imageUrl = reader.result as string;
+        // Save to localStorage immediately
+        localStorage.setItem(`profile_image_${user.id}`, imageUrl);
         setUserProfileImage(user.id, imageUrl);
         onUpdate({ ...user, profileImage: imageUrl });
         setMessage('Profile image updated!');
@@ -230,6 +232,8 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
 
   const handleUpdateName = () => {
     if (!name.trim()) { setError('Name cannot be empty'); return; }
+    // Save to localStorage immediately
+    localStorage.setItem(`profile_name_${user.id}`, name);
     updateUserProfile(user.id, { name });
     onUpdate({ ...user, name });
     setMessage('Name updated!');
@@ -710,15 +714,50 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
     if (currentInnings) {
       text += `📊 Score: ${currentInnings.runs}/${currentInnings.wickets} (${currentInnings.overs}.${currentInnings.balls} ov)\n`;
       const striker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+      const nonStriker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[1]];
       const bowler = currentInnings.bowlersStats?.[currentInnings.currentBowler];
-      if (striker) text += `🏏 ${striker.playerName}: ${striker.runs}(${striker.balls})\n`;
-      if (bowler) text += `⚾ ${bowler.playerName}: ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
+      if (striker) text += `🏏 Striker: ${striker.playerName}: ${striker.runs}(${striker.balls}) [4s:${striker.fours}, 6s:${striker.sixes}]\n`;
+      if (nonStriker) text += `🏏 Non-Striker: ${nonStriker.playerName}: ${nonStriker.runs}(${nonStriker.balls})\n`;
+      if (bowler) text += `⚾ Bowler: ${bowler.playerName}: ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
     }
-    text += `\nvia CricScore Pro`;
+    text += `\n🔴 Watch Live on CricScore Pro!`;
 
-    // ✅ Share to Facebook
+    // ✅ Share to Facebook Live
     const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(text)}`;
     window.open(facebookShareUrl, '_blank');
+  };
+
+  const handleFacebookLive = (match: Match) => {
+    // Open Facebook Live with score card
+    const currentInnings = match.innings?.[match.currentInnings];
+    const battingTeam = currentInnings?.battingTeamId === match.team1.id ? match.team1 : match.team2;
+    
+    let liveDescription = `🔴 LIVE CRICKET SCORE\n\n`;
+    liveDescription += `${match.team1.name} vs ${match.team2.name}\n`;
+    liveDescription += `📍 ${match.venue}\n\n`;
+    
+    if (currentInnings) {
+      liveDescription += `📊 ${battingTeam.name}: ${currentInnings.runs}/${currentInnings.wickets} (${currentInnings.overs}.${currentInnings.balls} ov)\n\n`;
+      
+      const striker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+      const nonStriker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[1]];
+      const bowler = currentInnings.bowlersStats?.[currentInnings.currentBowler];
+      
+      liveDescription += `🏏 BATTING:\n`;
+      if (striker) liveDescription += `• ${striker.playerName}* ${striker.runs}(${striker.balls}) [4s:${striker.fours}, 6s:${striker.sixes}]\n`;
+      if (nonStriker) liveDescription += `• ${nonStriker.playerName} ${nonStriker.runs}(${nonStriker.balls})\n`;
+      
+      if (bowler) {
+        liveDescription += `\n⚾ BOWLING:\n`;
+        liveDescription += `• ${bowler.playerName}* ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
+      }
+    }
+    
+    liveDescription += `\n📱 Score via CricScore Pro`;
+    
+    // Open Facebook Live
+    const facebookLiveUrl = `https://www.facebook.com/dialog/share?app_id=YOUR_APP_ID&display=popup&href=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(liveDescription)}`;
+    window.open(facebookLiveUrl, '_blank');
   };
 
   if (broadcastMatch) {
@@ -737,49 +776,110 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
         </div>
       ) : (
         <div className="space-y-3">
-          {liveMatches.map(m => (
-            <div key={m.id} className="bg-gray-800 rounded-xl p-4 border border-red-500/30">
-              <div className="flex items-center justify-between mb-3">
-                <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">● LIVE</span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleShare(m)} 
-                    className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 transform hover:scale-105 active:scale-95"
-                  >
-                    <svg className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
-                    <span>Share</span>
-                  </button>
-                  <button 
-                    onClick={() => setBroadcastMatch(m)} 
-                    className="group bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
-                    title="Broadcast"
-                  >
-                    <svg className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(m.id)} 
-                    className="group bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+          {liveMatches.map(m => {
+            const currentInnings = m.innings?.[m.currentInnings];
+            const battingTeam = currentInnings?.battingTeamId === m.team1.id ? m.team1 : m.team2;
+            const striker = currentInnings?.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+            const nonStriker = currentInnings?.batsmenStats?.[currentInnings.currentBatsmen?.[1]];
+            const bowler = currentInnings?.bowlersStats?.[currentInnings.currentBowler];
+            
+            return (
+              <div key={m.id} className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border-2 border-red-500/30 shadow-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse shadow-lg">● LIVE</span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleShare(m)} 
+                      className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-1 transform hover:scale-105 active:scale-95"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      <span>Share</span>
+                    </button>
+                    <button 
+                      onClick={() => handleFacebookLive(m)} 
+                      className="group bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-1 transform hover:scale-105 active:scale-95"
+                      title="Facebook Live"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                      <span>Live</span>
+                    </button>
+                    <button 
+                      onClick={() => setBroadcastMatch(m)} 
+                      className="group bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                      title="Broadcast"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(m.id)} 
+                      className="group bg-gradient-to-r from-gray-600 to-gray-700 hover:from-red-500 hover:to-red-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                      title="Delete"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+                
+                {/* Match Info */}
+                <div className="mb-3">
+                  <p className="font-bold text-lg text-white">{m.team1.name} vs {m.team2.name}</p>
+                  <p className="text-green-400 text-xs font-medium">📍 {m.venue}</p>
+                </div>
+                
+                {/* Live Score Card */}
+                {currentInnings && (
+                  <div className="bg-black/30 rounded-lg p-3 mb-3 border border-gray-700">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-gray-400">{battingTeam.name} - Innings {m.currentInnings + 1}</span>
+                      <span className="text-2xl font-black text-yellow-400">
+                        {currentInnings.runs}/{currentInnings.wickets}
+                        <span className="text-sm text-gray-400 ml-1">({currentInnings.overs}.{currentInnings.balls})</span>
+                      </span>
+                    </div>
+                    
+                    {/* Batsmen */}
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="bg-green-900/30 rounded p-2 border border-green-700/30">
+                        <p className="text-[10px] text-green-400 font-bold mb-0.5">🏏 STRIKER</p>
+                        <p className="text-xs font-bold truncate">{striker?.playerName || '-'}</p>
+                        <p className="text-sm font-black text-green-400">
+                          {striker?.runs || 0}<span className="text-xs text-gray-400 ml-1">({striker?.balls || 0})</span>
+                        </p>
+                      </div>
+                      <div className="bg-blue-900/30 rounded p-2 border border-blue-700/30">
+                        <p className="text-[10px] text-blue-400 font-bold mb-0.5">🏏 NON-STRIKER</p>
+                        <p className="text-xs font-bold truncate">{nonStriker?.playerName || '-'}</p>
+                        <p className="text-sm font-black text-blue-400">
+                          {nonStriker?.runs || 0}<span className="text-xs text-gray-400 ml-1">({nonStriker?.balls || 0})</span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Bowler */}
+                    <div className="bg-purple-900/30 rounded p-2 border border-purple-700/30">
+                      <p className="text-[10px] text-purple-400 font-bold mb-0.5">⚾ BOWLER</p>
+                      <p className="text-xs font-bold truncate">{bowler?.playerName || '-'}</p>
+                      <p className="text-sm font-black text-purple-400">
+                        {bowler?.overs || 0}.{bowler?.balls || 0}-{bowler?.runs || 0}-{bowler?.wickets || 0}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                <button onClick={() => onOpenMatch(m)} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg">
+                  ▶ Continue Scoring
+                </button>
               </div>
-              <div className="mb-2">
-                <p className="font-bold">{m.team1.name} vs {m.team2.name}</p>
-                <p className="text-gray-400 text-xs">{m.venue}</p>
-              </div>
-              <button onClick={() => onOpenMatch(m)} className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 transition-all">
-                ▶ Continue Scoring
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -2561,8 +2661,45 @@ function CreateLeagueScreen({ user, onBack }: { user: User; onBack: () => void }
 function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
   const [tab, setTab] = useState<'clients' | 'logs'>('clients');
   const [users, setUsers] = useState(getUsers());
+  const [firebaseUsers, setFirebaseUsers] = useState<any[]>([]);
+  const [syncing, setSyncing] = useState(false);
   const logs = getAdminLogs();
   const allMatches = getMatches();
+
+  // Fetch users from Firebase in real-time
+  useEffect(() => {
+    const fetchFirebaseUsers = async () => {
+      setSyncing(true);
+      try {
+        const { getAllUsersFromFirebase } = await import('./firebase');
+        const fbUsers = await getAllUsersFromFirebase();
+        setFirebaseUsers(fbUsers);
+        
+        // Merge Firebase users with local users
+        const localUsers = getUsers();
+        const mergedUsers = [...localUsers];
+        
+        fbUsers.forEach((fbUser: any) => {
+          const exists = mergedUsers.find(u => u.id === fbUser.id || u.email === fbUser.email);
+          if (!exists) {
+            mergedUsers.push(fbUser);
+          }
+        });
+        
+        setUsers(mergedUsers);
+        console.log('✅ Synced users from Firebase:', fbUsers.length);
+      } catch (error) {
+        console.warn('⚠️ Failed to sync users from Firebase:', error);
+      }
+      setSyncing(false);
+    };
+
+    fetchFirebaseUsers();
+    
+    // Refresh every 5 seconds for real-time updates
+    const interval = setInterval(fetchFirebaseUsers, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleEditUser = (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
@@ -2618,12 +2755,20 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
           <button onClick={onBack} className="text-white text-xl">←</button>
           <h1 className="text-xl font-bold">⚙️ Admin Panel</h1>
         </div>
-        <span className="text-xs bg-yellow-600 px-2 py-1 rounded">ADMIN</span>
+        <div className="flex items-center gap-2">
+          {syncing && (
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-xs text-green-400">Syncing...</span>
+            </div>
+          )}
+          <span className="text-xs bg-yellow-600 px-2 py-1 rounded">ADMIN</span>
+        </div>
       </div>
 
       <div className="flex border-b border-gray-700">
         <button onClick={() => setTab('clients')} className={`flex-1 py-3 text-sm font-bold ${tab === 'clients' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400'}`}>
-          👥 Clients
+          👥 Clients ({users.length})
         </button>
         <button onClick={() => setTab('logs')} className={`flex-1 py-3 text-sm font-bold ${tab === 'logs' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400'}`}>
           📋 Logs
