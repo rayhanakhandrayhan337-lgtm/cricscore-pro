@@ -1580,8 +1580,28 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
                 // Update the handleStart function to use these selections
                 const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
                 
-                const team1Id = league && leagueTeam1Id ? leagueTeam1Id : `t1_${Date.now()}`;
-                const team2Id = league && leagueTeam2Id ? leagueTeam2Id : `t2_${Date.now()}`;
+                // ✅ FIX: Get team IDs from league teams by matching team names
+                let team1Id = `t1_${Date.now()}`;
+                let team2Id = `t2_${Date.now()}`;
+                
+                if (league) {
+                  const leagueTeam1 = league.teams.find(t => t.name === team1Name);
+                  const leagueTeam2 = league.teams.find(t => t.name === team2Name);
+                  
+                  if (leagueTeam1) {
+                    team1Id = leagueTeam1.id;
+                    console.log('🏆 Found team 1 in league:', team1Name, '- ID:', team1Id);
+                  } else {
+                    console.warn('⚠️ Team 1 not found in league:', team1Name);
+                  }
+                  
+                  if (leagueTeam2) {
+                    team2Id = leagueTeam2.id;
+                    console.log('🏆 Found team 2 in league:', team2Name, '- ID:', team2Id);
+                  } else {
+                    console.warn('⚠️ Team 2 not found in league:', team2Name);
+                  }
+                }
                 
                 const team1: { id: string; name: string; players: Player[] } = { id: team1Id, name: team1Name, players: team1Players };
                 const team2: { id: string; name: string; players: Player[] } = { id: team2Id, name: team2Name, players: team2Players };
@@ -3031,9 +3051,13 @@ async function updateLeagueStandings(match: Match) {
   // ✅ Get team IDs from match (not innings)
   const team1Id = match.team1.id;
   const team2Id = match.team2.id;
+  
+  // ✅ Also get team names for fallback matching
+  const team1Name = match.team1.name;
+  const team2Name = match.team2.name;
 
-  console.log('🏆 Match Team 1:', match.team1.name, '- ID:', team1Id);
-  console.log('🏆 Match Team 2:', match.team2.name, '- ID:', team2Id);
+  console.log('🏆 Match Team 1:', team1Name, '- ID:', team1Id);
+  console.log('🏆 Match Team 2:', team2Name, '- ID:', team2Id);
   console.log('🏆 Innings 1 (batting first):', inn1.battingTeamId, '- Score:', inn1.runs);
   console.log('🏆 Innings 2 (batting second):', inn2.battingTeamId, '- Score:', inn2.runs);
 
@@ -3054,15 +3078,17 @@ async function updateLeagueStandings(match: Match) {
   league.teams = league.teams.map(team => {
     const t = { ...team };
     
-    // ✅ Explicit string comparison for team IDs
-    const isTeam1 = String(team.id).trim() === String(team1Id).trim();
-    const isTeam2 = String(team.id).trim() === String(team2Id).trim();
+    // ✅ Match by ID OR by team name (fallback)
+    const isTeam1 = String(team.id).trim() === String(team1Id).trim() || 
+                    String(team.name).trim() === String(match.team1.name).trim();
+    const isTeam2 = String(team.id).trim() === String(team2Id).trim() || 
+                    String(team.name).trim() === String(match.team2.name).trim();
     const playedInMatch = isTeam1 || isTeam2;
     
     console.log(`🏆 Checking team: ${team.name}`);
     console.log(`🏆   - Team ID: "${team.id}"`);
-    console.log(`🏆   - Match Team 1 ID: "${team1Id}" - Match: ${isTeam1}`);
-    console.log(`🏆   - Match Team 2 ID: "${team2Id}" - Match: ${isTeam2}`);
+    console.log(`🏆   - Match Team 1: "${match.team1.name}" (ID: "${team1Id}") - Match: ${isTeam1}`);
+    console.log(`🏆   - Match Team 2: "${match.team2.name}" (ID: "${team2Id}") - Match: ${isTeam2}`);
     console.log(`🏆   - Played in this match: ${playedInMatch}`);
     
     if (playedInMatch) {
