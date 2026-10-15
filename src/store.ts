@@ -68,19 +68,29 @@ export async function login(email: string, password: string): Promise<{ success:
   const storedPass = localStorage.getItem(`cric_pass_${email}`);
   if (storedPass !== password) return { success: false, error: 'Invalid password' };
   
-  setCurrentUser(user);
+  // Load saved profile image and name from localStorage
+  const savedImage = localStorage.getItem(`profile_image_${user.id}`);
+  const savedName = localStorage.getItem(`profile_name_${user.id}`);
+  
+  const userWithProfile: User = {
+    ...user,
+    profileImage: savedImage || user.profileImage,
+    name: savedName || user.name
+  };
+  
+  setCurrentUser(userWithProfile);
   
   // Login to Firebase and sync user data
   try {
     const { firebaseLogin, saveUserToFirebase } = await import('./firebase');
     await firebaseLogin(email, password);
-    await saveUserToFirebase(user);
+    await saveUserToFirebase(userWithProfile);
     console.log('✅ User logged in and synced to Firebase:', user.email);
   } catch (error) {
     console.warn('⚠️ Firebase login failed, continuing with local user');
   }
   
-  return { success: true, user };
+  return { success: true, user: userWithProfile };
 }
 
 export async function signup(email: string, password: string, name: string): Promise<{ success: boolean; user?: User; error?: string }> {

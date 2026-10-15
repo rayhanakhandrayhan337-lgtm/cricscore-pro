@@ -219,6 +219,8 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
       const reader = new FileReader();
       reader.onloadend = () => {
         const imageUrl = reader.result as string;
+        // Save to localStorage immediately
+        localStorage.setItem(`profile_image_${user.id}`, imageUrl);
         setUserProfileImage(user.id, imageUrl);
         onUpdate({ ...user, profileImage: imageUrl });
         setMessage('Profile image updated!');
@@ -230,6 +232,8 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
 
   const handleUpdateName = () => {
     if (!name.trim()) { setError('Name cannot be empty'); return; }
+    // Save to localStorage immediately
+    localStorage.setItem(`profile_name_${user.id}`, name);
     updateUserProfile(user.id, { name });
     onUpdate({ ...user, name });
     setMessage('Name updated!');
@@ -710,15 +714,50 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
     if (currentInnings) {
       text += `📊 Score: ${currentInnings.runs}/${currentInnings.wickets} (${currentInnings.overs}.${currentInnings.balls} ov)\n`;
       const striker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+      const nonStriker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[1]];
       const bowler = currentInnings.bowlersStats?.[currentInnings.currentBowler];
-      if (striker) text += `🏏 ${striker.playerName}: ${striker.runs}(${striker.balls})\n`;
-      if (bowler) text += `⚾ ${bowler.playerName}: ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
+      if (striker) text += `🏏 Striker: ${striker.playerName}: ${striker.runs}(${striker.balls}) [4s:${striker.fours}, 6s:${striker.sixes}]\n`;
+      if (nonStriker) text += `🏏 Non-Striker: ${nonStriker.playerName}: ${nonStriker.runs}(${nonStriker.balls})\n`;
+      if (bowler) text += `⚾ Bowler: ${bowler.playerName}: ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
     }
-    text += `\nvia CricScore Pro`;
+    text += `\n🔴 Watch Live on CricScore Pro!`;
 
-    // ✅ Share to Facebook
+    // ✅ Share to Facebook Live
     const facebookShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(text)}`;
     window.open(facebookShareUrl, '_blank');
+  };
+
+  const handleFacebookLive = (match: Match) => {
+    // Open Facebook Live with score card
+    const currentInnings = match.innings?.[match.currentInnings];
+    const battingTeam = currentInnings?.battingTeamId === match.team1.id ? match.team1 : match.team2;
+    
+    let liveDescription = `🔴 LIVE CRICKET SCORE\n\n`;
+    liveDescription += `${match.team1.name} vs ${match.team2.name}\n`;
+    liveDescription += `📍 ${match.venue}\n\n`;
+    
+    if (currentInnings) {
+      liveDescription += `📊 ${battingTeam.name}: ${currentInnings.runs}/${currentInnings.wickets} (${currentInnings.overs}.${currentInnings.balls} ov)\n\n`;
+      
+      const striker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+      const nonStriker = currentInnings.batsmenStats?.[currentInnings.currentBatsmen?.[1]];
+      const bowler = currentInnings.bowlersStats?.[currentInnings.currentBowler];
+      
+      liveDescription += `🏏 BATTING:\n`;
+      if (striker) liveDescription += `• ${striker.playerName}* ${striker.runs}(${striker.balls}) [4s:${striker.fours}, 6s:${striker.sixes}]\n`;
+      if (nonStriker) liveDescription += `• ${nonStriker.playerName} ${nonStriker.runs}(${nonStriker.balls})\n`;
+      
+      if (bowler) {
+        liveDescription += `\n⚾ BOWLING:\n`;
+        liveDescription += `• ${bowler.playerName}* ${bowler.overs}.${bowler.balls}-${bowler.runs}-${bowler.wickets}\n`;
+      }
+    }
+    
+    liveDescription += `\n📱 Score via CricScore Pro`;
+    
+    // Open Facebook Live
+    const facebookLiveUrl = `https://www.facebook.com/dialog/share?app_id=YOUR_APP_ID&display=popup&href=${encodeURIComponent(window.location.href)}&quote=${encodeURIComponent(liveDescription)}`;
+    window.open(facebookLiveUrl, '_blank');
   };
 
   if (broadcastMatch) {
@@ -737,49 +776,110 @@ function LiveTab({ user, onOpenMatch }: { user: User; onOpenMatch: (m: Match) =>
         </div>
       ) : (
         <div className="space-y-3">
-          {liveMatches.map(m => (
-            <div key={m.id} className="bg-gray-800 rounded-xl p-4 border border-red-500/30">
-              <div className="flex items-center justify-between mb-3">
-                <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">● LIVE</span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleShare(m)} 
-                    className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 transform hover:scale-105 active:scale-95"
-                  >
-                    <svg className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
-                    <span>Share</span>
-                  </button>
-                  <button 
-                    onClick={() => setBroadcastMatch(m)} 
-                    className="group bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
-                    title="Broadcast"
-                  >
-                    <svg className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(m.id)} 
-                    className="group bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-3 py-2 rounded-lg text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+          {liveMatches.map(m => {
+            const currentInnings = m.innings?.[m.currentInnings];
+            const battingTeam = currentInnings?.battingTeamId === m.team1.id ? m.team1 : m.team2;
+            const striker = currentInnings?.batsmenStats?.[currentInnings.currentBatsmen?.[0]];
+            const nonStriker = currentInnings?.batsmenStats?.[currentInnings.currentBatsmen?.[1]];
+            const bowler = currentInnings?.bowlersStats?.[currentInnings.currentBowler];
+            
+            return (
+              <div key={m.id} className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border-2 border-red-500/30 shadow-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse shadow-lg">● LIVE</span>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleShare(m)} 
+                      className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-1 transform hover:scale-105 active:scale-95"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      <span>Share</span>
+                    </button>
+                    <button 
+                      onClick={() => handleFacebookLive(m)} 
+                      className="group bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-1 transform hover:scale-105 active:scale-95"
+                      title="Facebook Live"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                      <span>Live</span>
+                    </button>
+                    <button 
+                      onClick={() => setBroadcastMatch(m)} 
+                      className="group bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                      title="Broadcast"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(m.id)} 
+                      className="group bg-gradient-to-r from-gray-600 to-gray-700 hover:from-red-500 hover:to-red-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+                      title="Delete"
+                    >
+                      <svg className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+                
+                {/* Match Info */}
+                <div className="mb-3">
+                  <p className="font-bold text-lg text-white">{m.team1.name} vs {m.team2.name}</p>
+                  <p className="text-green-400 text-xs font-medium">📍 {m.venue}</p>
+                </div>
+                
+                {/* Live Score Card */}
+                {currentInnings && (
+                  <div className="bg-black/30 rounded-lg p-3 mb-3 border border-gray-700">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-gray-400">{battingTeam.name} - Innings {m.currentInnings + 1}</span>
+                      <span className="text-2xl font-black text-yellow-400">
+                        {currentInnings.runs}/{currentInnings.wickets}
+                        <span className="text-sm text-gray-400 ml-1">({currentInnings.overs}.{currentInnings.balls})</span>
+                      </span>
+                    </div>
+                    
+                    {/* Batsmen */}
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="bg-green-900/30 rounded p-2 border border-green-700/30">
+                        <p className="text-[10px] text-green-400 font-bold mb-0.5">🏏 STRIKER</p>
+                        <p className="text-xs font-bold truncate">{striker?.playerName || '-'}</p>
+                        <p className="text-sm font-black text-green-400">
+                          {striker?.runs || 0}<span className="text-xs text-gray-400 ml-1">({striker?.balls || 0})</span>
+                        </p>
+                      </div>
+                      <div className="bg-blue-900/30 rounded p-2 border border-blue-700/30">
+                        <p className="text-[10px] text-blue-400 font-bold mb-0.5">🏏 NON-STRIKER</p>
+                        <p className="text-xs font-bold truncate">{nonStriker?.playerName || '-'}</p>
+                        <p className="text-sm font-black text-blue-400">
+                          {nonStriker?.runs || 0}<span className="text-xs text-gray-400 ml-1">({nonStriker?.balls || 0})</span>
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Bowler */}
+                    <div className="bg-purple-900/30 rounded p-2 border border-purple-700/30">
+                      <p className="text-[10px] text-purple-400 font-bold mb-0.5">⚾ BOWLER</p>
+                      <p className="text-xs font-bold truncate">{bowler?.playerName || '-'}</p>
+                      <p className="text-sm font-black text-purple-400">
+                        {bowler?.overs || 0}.{bowler?.balls || 0}-{bowler?.runs || 0}-{bowler?.wickets || 0}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                <button onClick={() => onOpenMatch(m)} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 py-2.5 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg">
+                  ▶ Continue Scoring
+                </button>
               </div>
-              <div className="mb-2">
-                <p className="font-bold">{m.team1.name} vs {m.team2.name}</p>
-                <p className="text-gray-400 text-xs">{m.venue}</p>
-              </div>
-              <button onClick={() => onOpenMatch(m)} className="w-full bg-green-600 py-2 rounded-lg font-bold hover:bg-green-700 transition-all">
-                ▶ Continue Scoring
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -906,6 +1006,99 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
 function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user: User; onCreateLeague: () => void; onCreateMatch: (l: League) => void; onOpenMatch: (m: Match) => void }) {
   const [leagues, setLeagues] = useState(getLeagues(user.id));
 
+  // ✅ Automatic recalculation when league tab opens
+  useEffect(() => {
+    console.log('🔄 Auto-recalculating all league tables...');
+    
+    const allLeagues = getLeagues(user.id);
+    const allMatches = getMatches();
+    
+    allLeagues.forEach(league => {
+      const completedMatches = allMatches.filter(m => 
+        m.leagueId === league.id && m.status === 'completed'
+      );
+      
+      if (completedMatches.length > 0) {
+        console.log(`🏆 Recalculating ${league.name} with ${completedMatches.length} matches`);
+        
+        // Reset all team stats
+        const resetTeams = league.teams.map(team => ({
+          ...team,
+          played: 0,
+          won: 0,
+          lost: 0,
+          tied: 0,
+          points: 0,
+          nrr: 0,
+          runsScored: 0,
+          runsConceded: 0,
+          oversPlayed: 0,
+          oversBowled: 0
+        }));
+        
+        // Recalculate stats for each completed match
+        resetTeams.forEach(team => {
+          completedMatches.forEach(match => {
+            const inn1 = match.innings?.[0];
+            const inn2 = match.innings?.[1];
+            if (!inn1 || !inn2) return;
+            
+            const team1Id = match.team1.id;
+            const team2Id = match.team2.id;
+            
+            const isTeam1 = team.id === team1Id;
+            const isTeam2 = team.id === team2Id;
+            
+            if (isTeam1 || isTeam2) {
+              team.played += 1;
+              
+              const myInnings = isTeam1 ? inn1 : inn2;
+              const oppInnings = isTeam1 ? inn2 : inn1;
+              
+              team.runsScored += myInnings.runs || 0;
+              team.runsConceded += oppInnings.runs || 0;
+              team.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
+              team.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
+              
+              // Determine winner
+              let winnerId = '';
+              if ((inn2.runs || 0) > (inn1.runs || 0)) {
+                winnerId = inn2.battingTeamId;
+              } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
+                winnerId = inn1.battingTeamId;
+              }
+              
+              if (winnerId === team.id) {
+                team.won += 1;
+                team.points += 2;
+              } else if (winnerId) {
+                team.lost += 1;
+                // Losing team gets 0 points, only NRR will be calculated
+              } else {
+                team.tied += 1;
+                team.points += 1;
+              }
+              
+              // Calculate NRR
+              if (team.oversBowled > 0 && team.oversPlayed > 0) {
+                team.nrr = (team.runsScored / team.oversBowled) - (team.runsConceded / team.oversPlayed);
+              }
+            }
+          });
+        });
+        
+        // Update league
+        const updatedLeague = { ...league, teams: resetTeams };
+        saveLeague(updatedLeague);
+        
+        console.log(`✅ ${league.name} recalculated successfully`);
+      }
+    });
+    
+    // Refresh leagues state
+    setLeagues(getLeagues(user.id));
+  }, []);
+
   const handleDeleteLeague = (leagueId: string) => {
     if (window.confirm('Are you sure you want to delete this league and all its matches?')) {
       console.log('Deleting league:', leagueId);
@@ -953,7 +1146,25 @@ function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user:
 function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: League; onCreateMatch: () => void; onOpenMatch: (m: Match) => void; onDelete: () => void }) {
   const allMatches = getMatches();
   const leagueMatches = allMatches.filter(m => m.leagueId === league.id);
-  const sortedTeams = [...league.teams].sort((a, b) => b.points - a.points || b.nrr - a.nrr);
+  
+  // ✅ Sort teams by points (descending), then by NRR (descending), then by wins (descending)
+  const sortedTeams = [...league.teams].sort((a, b) => {
+    // First sort by points (highest first)
+    if (b.points !== a.points) {
+      return b.points - a.points;
+    }
+    // If points are equal, sort by NRR (highest first)
+    if (b.nrr !== a.nrr) {
+      return b.nrr - a.nrr;
+    }
+    // If NRR are also equal, sort by wins (highest first)
+    return b.won - a.won;
+  });
+  
+  console.log('📊 League Point Table:', league.name);
+  sortedTeams.forEach((team, idx) => {
+    console.log(`📊 ${idx + 1}. ${team.name}: ${team.points} pts, NRR: ${team.nrr.toFixed(3)}, Wins: ${team.won}`);
+  });
 
   return (
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
@@ -1071,19 +1282,45 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat');
   const [step, setStep] = useState(1);
 
-  const [leagueTeam1Id, setLeagueTeam1Id] = useState<string>('');
-  const [leagueTeam2Id, setLeagueTeam2Id] = useState<string>('');
+  const [selectedTeam1Id, setSelectedTeam1Id] = useState<string>('');
+  const [selectedTeam2Id, setSelectedTeam2Id] = useState<string>('');
 
+  // ✅ When league is provided, show dropdown for team selection
   useEffect(() => {
-    if (league) {
-      setTeam1Name(league.teams[0]?.name || '');
-      setTeam2Name(league.teams[1]?.name || '');
-      setTeam1Players(league.teams[0]?.players || []);
-      setTeam2Players(league.teams[1]?.players || []);
-      setLeagueTeam1Id(league.teams[0]?.id || '');
-      setLeagueTeam2Id(league.teams[1]?.id || '');
+    if (league && league.teams.length > 0) {
+      console.log('🏆 League loaded with teams:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
+      // Auto-select first two teams if available
+      if (league.teams.length >= 2) {
+        setSelectedTeam1Id(league.teams[0].id);
+        setSelectedTeam2Id(league.teams[1].id);
+        setTeam1Name(league.teams[0].name);
+        setTeam2Name(league.teams[1].name);
+        setTeam1Players(league.teams[0].players);
+        setTeam2Players(league.teams[1].players);
+      }
     }
   }, [league]);
+
+  // ✅ Handle team selection from dropdown
+  const handleTeam1Select = (teamId: string) => {
+    setSelectedTeam1Id(teamId);
+    const team = league?.teams.find(t => t.id === teamId);
+    if (team) {
+      setTeam1Name(team.name);
+      setTeam1Players(team.players);
+      console.log('🏆 Team 1 selected:', team.name, '- ID:', team.id);
+    }
+  };
+
+  const handleTeam2Select = (teamId: string) => {
+    setSelectedTeam2Id(teamId);
+    const team = league?.teams.find(t => t.id === teamId);
+    if (team) {
+      setTeam2Name(team.name);
+      setTeam2Players(team.players);
+      console.log('🏆 Team 2 selected:', team.name, '- ID:', team.id);
+    }
+  };
 
   const generatePlayers = (teamNum: number) => {
     const roles: Player['role'][] = ['batsman', 'batsman', 'batsman', 'batsman', 'allrounder', 'allrounder', 'wicketkeeper', 'bowler', 'bowler', 'bowler', 'bowler'];
@@ -1115,9 +1352,13 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
 
     const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
     
-    // Use league team IDs if this is a league match, otherwise generate new IDs
-    const team1Id = league && leagueTeam1Id ? leagueTeam1Id : `t1_${Date.now()}`;
-    const team2Id = league && leagueTeam2Id ? leagueTeam2Id : `t2_${Date.now()}`;
+    // ✅ Use selected team IDs from dropdown
+    const team1Id = selectedTeam1Id || `t1_${Date.now()}`;
+    const team2Id = selectedTeam2Id || `t2_${Date.now()}`;
+    
+    console.log('🏆 Creating match with teams:');
+    console.log('🏆 Team 1:', team1Name, '- ID:', team1Id);
+    console.log('🏆 Team 2:', team2Name, '- ID:', team2Id);
     
     const team1: { id: string; name: string; players: Player[] } = { id: team1Id, name: team1Name, players: team1Players };
     const team2: { id: string; name: string; players: Player[] } = { id: team2Id, name: team2Name, players: team2Players };
@@ -1185,20 +1426,89 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
         {step === 1 && (
           <div className="space-y-4">
             <h3 className="font-bold text-lg">Match Details</h3>
-            <input type="text" placeholder="Team 1 Name" value={team1Name} onChange={e => setTeam1Name(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
-            <input type="text" placeholder="Team 2 Name" value={team2Name} onChange={e => setTeam2Name(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
+            
+            {/* ✅ Team Selection - Dropdown for League, Input for Custom */}
+            {league ? (
+              <>
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">Select Team 1</label>
+                  <select
+                    value={selectedTeam1Id}
+                    onChange={(e) => handleTeam1Select(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">-- Select Team 1 --</option>
+                    {league.teams.map(team => (
+                      <option key={team.id} value={team.id} disabled={team.id === selectedTeam2Id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-400 mb-2 block">Select Team 2</label>
+                  <select
+                    value={selectedTeam2Id}
+                    onChange={(e) => handleTeam2Select(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">-- Select Team 2 --</option>
+                    {league.teams.map(team => (
+                      <option key={team.id} value={team.id} disabled={team.id === selectedTeam1Id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                <input type="text" placeholder="Team 1 Name" value={team1Name} onChange={e => setTeam1Name(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
+                <input type="text" placeholder="Team 2 Name" value={team2Name} onChange={e => setTeam2Name(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
+              </>
+            )}
+            
             <input type="text" placeholder="Venue" value={venue} onChange={e => setVenue(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-green-500 focus:outline-none" />
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="text-sm text-gray-400">Total Overs</label>
-                <button onClick={randomizeOvers} className="text-xs bg-purple-600 px-3 py-1 rounded hover:bg-purple-700">🎲 Random</button>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-green-400">{totalOvers}</span>
+                  <span className="text-xs text-gray-400">overs</span>
+                  <button onClick={randomizeOvers} className="text-xs bg-purple-600 px-3 py-1 rounded hover:bg-purple-700">🎲 Random</button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                {[3, 5, 10, 15, 20].map(o => (
-                  <button key={o} onClick={() => setTotalOvers(o)} className={`flex-1 py-2 rounded-lg font-bold ${totalOvers === o ? 'bg-green-600' : 'bg-gray-700'}`}>{o}</button>
+              
+              {/* Slider for overs selection (2-20) */}
+              <div className="bg-gray-800 rounded-xl p-4">
+                <input
+                  type="range"
+                  min="2"
+                  max="20"
+                  value={totalOvers}
+                  onChange={(e) => setTotalOvers(parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                  style={{
+                    background: `linear-gradient(to right, #10b981 0%, #10b981 ${((totalOvers - 2) / 18) * 100}%, #374151 ${((totalOvers - 2) / 18) * 100}%, #374151 100%)`
+                  }}
+                />
+                <div className="flex justify-between text-xs text-gray-400 mt-2">
+                  <span>2</span>
+                  <span>5</span>
+                  <span>10</span>
+                  <span>15</span>
+                  <span>20</span>
+                </div>
+              </div>
+              
+              {/* Quick select buttons */}
+              <div className="flex gap-2 mt-3">
+                {[2, 5, 10, 15, 20].map(o => (
+                  <button key={o} onClick={() => setTotalOvers(o)} className={`flex-1 py-2 rounded-lg font-bold text-sm ${totalOvers === o ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'}`}>{o}</button>
                 ))}
               </div>
             </div>
@@ -1341,8 +1651,28 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
                 // Update the handleStart function to use these selections
                 const battingFirst = tossDecision === 'bat' ? tossWinner : (tossWinner === team1Name ? team2Name : team1Name);
                 
-                const team1Id = league && leagueTeam1Id ? leagueTeam1Id : `t1_${Date.now()}`;
-                const team2Id = league && leagueTeam2Id ? leagueTeam2Id : `t2_${Date.now()}`;
+                // ✅ FIX: Get team IDs from league teams by matching team names
+                let team1Id = `t1_${Date.now()}`;
+                let team2Id = `t2_${Date.now()}`;
+                
+                if (league) {
+                  const leagueTeam1 = league.teams.find(t => t.name === team1Name);
+                  const leagueTeam2 = league.teams.find(t => t.name === team2Name);
+                  
+                  if (leagueTeam1) {
+                    team1Id = leagueTeam1.id;
+                    console.log('🏆 Found team 1 in league:', team1Name, '- ID:', team1Id);
+                  } else {
+                    console.warn('⚠️ Team 1 not found in league:', team1Name);
+                  }
+                  
+                  if (leagueTeam2) {
+                    team2Id = leagueTeam2.id;
+                    console.log('🏆 Found team 2 in league:', team2Name, '- ID:', team2Id);
+                  } else {
+                    console.warn('⚠️ Team 2 not found in league:', team2Name);
+                  }
+                }
                 
                 const team1: { id: string; name: string; players: Player[] } = { id: team1Id, name: team1Name, players: team1Players };
                 const team2: { id: string; name: string; players: Player[] } = { id: team2Id, name: team2Name, players: team2Players };
@@ -1466,7 +1796,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
 
   // ✅ NEW: Process ball - completely rewritten from scratch
-  const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
+  const processBall = async (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
     // Create deep copy of match
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
@@ -1543,16 +1873,23 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       if (inn.wickets >= 10) {
         inn.isCompleted = true;
-        handleInningsEnd(newMatch);
+        await handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
         // Clear striker for new batsman
         inn.currentBatsmen[0] = '';
         setNewBatsmanPosition('striker');
         
-        // Check if this was the last ball of the over (ball was 5, now balls is 0 after increment)
+        // Check if this was the last ball of the over (ball was 5 before increment)
         const wasLastBallOfOver = (currentBall === 5);
         if (wasLastBallOfOver) {
+          // Check if innings is complete (using currentOver + 1 because over just incremented)
+          if (currentOver + 1 >= match.totalOvers) {
+            inn.isCompleted = true;
+            await handleInningsEnd(newMatch);
+            onUpdate(newMatch);
+            return;
+          }
           setPendingBowlerSelect(true);
         }
         
@@ -1567,13 +1904,15 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
     }
 
-    // End of over
-    if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
+    // End of over - check if this was the last ball of the over
+    if (!isWide && !isNoBall && currentBall === 5) {
+      // Rotate strike
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
       
-      if (inn.overs >= match.totalOvers) {
+      // Check if innings is complete (using currentOver + 1 because over just incremented)
+      if (currentOver + 1 >= match.totalOvers) {
         inn.isCompleted = true;
-        handleInningsEnd(newMatch);
+        await handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
         // Clear bowler for new selection
@@ -1587,14 +1926,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Check if target achieved
     if (target && inn.runs >= target) {
       inn.isCompleted = true;
-      handleInningsEnd(newMatch);
+      await handleInningsEnd(newMatch);
     }
 
     onUpdate(newMatch);
   };
 
   // ✅ NEW: Handle innings end
-  const handleInningsEnd = (newMatch: Match) => {
+  const handleInningsEnd = async (newMatch: Match) => {
     if (newMatch.currentInnings === 0) {
       setInningBreak(true);
       onUpdate(newMatch);
@@ -1618,7 +1957,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       newMatch.result = result;
       
       if (newMatch.leagueId) {
-        updateLeagueStandings(newMatch);
+        console.log('🏆 Match completed, updating league standings...');
+        await updateLeagueStandings(newMatch);
+        console.log('🏆 League standings update complete');
       }
       
       setShowMatchComplete(true);
@@ -2561,8 +2902,45 @@ function CreateLeagueScreen({ user, onBack }: { user: User; onBack: () => void }
 function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
   const [tab, setTab] = useState<'clients' | 'logs'>('clients');
   const [users, setUsers] = useState(getUsers());
+  const [firebaseUsers, setFirebaseUsers] = useState<any[]>([]);
+  const [syncing, setSyncing] = useState(false);
   const logs = getAdminLogs();
   const allMatches = getMatches();
+
+  // Fetch users from Firebase in real-time
+  useEffect(() => {
+    const fetchFirebaseUsers = async () => {
+      setSyncing(true);
+      try {
+        const { getAllUsersFromFirebase } = await import('./firebase');
+        const fbUsers = await getAllUsersFromFirebase();
+        setFirebaseUsers(fbUsers);
+        
+        // Merge Firebase users with local users
+        const localUsers = getUsers();
+        const mergedUsers = [...localUsers];
+        
+        fbUsers.forEach((fbUser: any) => {
+          const exists = mergedUsers.find(u => u.id === fbUser.id || u.email === fbUser.email);
+          if (!exists) {
+            mergedUsers.push(fbUser);
+          }
+        });
+        
+        setUsers(mergedUsers);
+        console.log('✅ Synced users from Firebase:', fbUsers.length);
+      } catch (error) {
+        console.warn('⚠️ Failed to sync users from Firebase:', error);
+      }
+      setSyncing(false);
+    };
+
+    fetchFirebaseUsers();
+    
+    // Refresh every 5 seconds for real-time updates
+    const interval = setInterval(fetchFirebaseUsers, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleEditUser = (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
@@ -2618,12 +2996,20 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
           <button onClick={onBack} className="text-white text-xl">←</button>
           <h1 className="text-xl font-bold">⚙️ Admin Panel</h1>
         </div>
-        <span className="text-xs bg-yellow-600 px-2 py-1 rounded">ADMIN</span>
+        <div className="flex items-center gap-2">
+          {syncing && (
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-xs text-green-400">Syncing...</span>
+            </div>
+          )}
+          <span className="text-xs bg-yellow-600 px-2 py-1 rounded">ADMIN</span>
+        </div>
       </div>
 
       <div className="flex border-b border-gray-700">
         <button onClick={() => setTab('clients')} className={`flex-1 py-3 text-sm font-bold ${tab === 'clients' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400'}`}>
-          👥 Clients
+          👥 Clients ({users.length})
         </button>
         <button onClick={() => setTab('logs')} className={`flex-1 py-3 text-sm font-bold ${tab === 'logs' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-gray-400'}`}>
           📋 Logs
@@ -2703,56 +3089,150 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
   );
 }
 
-// ============= LEAGUE STANDINGS UPDATE =============
+// ============= LEAGUE STANDINGS UPDATE - COMPLETELY REWRITTEN =============
 async function updateLeagueStandings(match: Match) {
-  if (!match.leagueId) return;
+  console.log('\n🏆 ========================================');
+  console.log('🏆 LEAGUE STANDINGS UPDATE STARTED');
+  console.log('🏆 ========================================');
+  
+  if (!match.leagueId) {
+    console.log('❌ No league ID - skipping update');
+    return;
+  }
+  
+  // Get league
   const leagues = getLeagues();
   const league = leagues.find(l => l.id === match.leagueId);
-  if (!league) return;
-
+  
+  if (!league) {
+    console.log('❌ League not found - ID:', match.leagueId);
+    return;
+  }
+  
+  console.log('✅ League found:', league.name);
+  console.log('📋 League has', league.teams.length, 'teams');
+  
+  // Get innings data
   const inn1 = match.innings?.[0];
   const inn2 = match.innings?.[1];
-  if (!inn1 || !inn2) return;
-
-  const battingFirstTeamId = inn1.battingTeamId;
-  const battingSecondTeamId = inn2.battingTeamId;
-
-  let winnerId = '';
-  if ((inn2.runs || 0) > (inn1.runs || 0)) winnerId = battingSecondTeamId;
-  else if ((inn1.runs || 0) > (inn2.runs || 0)) winnerId = battingFirstTeamId;
-
-  league.teams = league.teams.map(team => {
-    const t = { ...team };
-    const isTeam1 = team.id === battingFirstTeamId;
-    const isTeam2 = team.id === battingSecondTeamId;
-
-    if (isTeam1 || isTeam2) {
-      t.played += 1;
-      const myInnings = isTeam1 ? inn1 : inn2;
-      const oppInnings = isTeam1 ? inn2 : inn1;
-      t.runsScored += (myInnings.runs || 0);
-      t.runsConceded += (oppInnings.runs || 0);
-      t.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
-      t.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
-
-      if (winnerId === team.id) {
-        t.won += 1;
-        t.points += 2;
-      } else if (winnerId) {
-        t.lost += 1;
-      } else {
-        // ✅ Match tied - both teams get 1 point
-        t.tied += 1;
-        t.points += 1;
-      }
-
-      if (t.oversBowled > 0 && t.oversPlayed > 0) {
-        t.nrr = (t.runsScored / t.oversBowled) - (t.runsConceded / t.oversPlayed);
-      }
+  
+  if (!inn1 || !inn2) {
+    console.log('❌ Innings data missing');
+    return;
+  }
+  
+  // Get match teams
+  const matchTeam1 = match.team1;
+  const matchTeam2 = match.team2;
+  
+  console.log('\n📊 Match Details:');
+  console.log('  Team 1:', matchTeam1.name, '(ID:', matchTeam1.id + ')');
+  console.log('  Team 2:', matchTeam2.name, '(ID:', matchTeam2.id + ')');
+  console.log('  Innings 1 Score:', inn1.runs);
+  console.log('  Innings 2 Score:', inn2.runs);
+  
+  // Determine winner
+  let winnerTeamId = '';
+  let winnerTeamName = '';
+  
+  if (inn2.runs > inn1.runs) {
+    winnerTeamId = inn2.battingTeamId;
+    const winnerTeam = league.teams.find(t => t.id === winnerTeamId);
+    winnerTeamName = winnerTeam?.name || 'Unknown';
+    console.log('\n🏆 Winner:', winnerTeamName, '(batting second)');
+  } else if (inn1.runs > inn2.runs) {
+    winnerTeamId = inn1.battingTeamId;
+    const winnerTeam = league.teams.find(t => t.id === winnerTeamId);
+    winnerTeamName = winnerTeam?.name || 'Unknown';
+    console.log('\n🏆 Winner:', winnerTeamName, '(batting first)');
+  } else {
+    console.log('\n🤝 Match Tied');
+  }
+  
+  // Update league teams
+  console.log('\n🔄 Updating team statistics...');
+  
+  const updatedTeams = league.teams.map(team => {
+    const updatedTeam = { ...team };
+    
+    // Check if this team played in the match
+    const isTeam1 = team.id === matchTeam1.id || team.name === matchTeam1.name;
+    const isTeam2 = team.id === matchTeam2.id || team.name === matchTeam2.name;
+    const playedInMatch = isTeam1 || isTeam2;
+    
+    if (!playedInMatch) {
+      console.log(`  ⏭️  ${team.name} - Did not play`);
+      return updatedTeam;
     }
-    return t;
+    
+    console.log(`\n  ✓ ${team.name} - Played in match`);
+    
+    // Update played count
+    updatedTeam.played += 1;
+    
+    // Get innings data for this team
+    const myInnings = isTeam1 ? inn1 : inn2;
+    const oppInnings = isTeam1 ? inn2 : inn1;
+    
+    console.log(`    My Score: ${myInnings.runs} runs`);
+    console.log(`    Opp Score: ${oppInnings.runs} runs`);
+    
+    // Update runs
+    updatedTeam.runsScored += myInnings.runs;
+    updatedTeam.runsConceded += oppInnings.runs;
+    
+    // Update overs
+    const myOvers = myInnings.overs + (myInnings.balls / 6);
+    const oppOvers = oppInnings.overs + (oppInnings.balls / 6);
+    updatedTeam.oversPlayed += myOvers;
+    updatedTeam.oversBowled += oppOvers;
+    
+    // Update win/loss/tie
+    const isWinner = team.id === winnerTeamId || team.name === winnerTeamName;
+    
+    if (winnerTeamId === '') {
+      // Tied match
+      updatedTeam.tied += 1;
+      updatedTeam.points += 1;
+      console.log(`    Result: TIED (+1 point)`);
+    } else if (isWinner) {
+      updatedTeam.won += 1;
+      updatedTeam.points += 2;
+      console.log(`    Result: WON (+2 points)`);
+    } else {
+      updatedTeam.lost += 1;
+      console.log(`    Result: LOST (0 points)`);
+    }
+    
+    // Calculate NRR
+    if (updatedTeam.oversBowled > 0 && updatedTeam.oversPlayed > 0) {
+      updatedTeam.nrr = (updatedTeam.runsScored / updatedTeam.oversBowled) - 
+                        (updatedTeam.runsConceded / updatedTeam.oversPlayed);
+      console.log(`    NRR: ${updatedTeam.nrr.toFixed(3)}`);
+    }
+    
+    console.log(`    Total Points: ${updatedTeam.points}`);
+    
+    return updatedTeam;
   });
-
+  
+  // Save updated league
+  league.teams = updatedTeams;
   league.matches.push(match.id);
+  
   await saveLeague(league);
+  
+  console.log('\n📊 FINAL STANDINGS:');
+  const sortedTeams = [...updatedTeams].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.nrr !== a.nrr) return b.nrr - a.nrr;
+    return b.won - a.won;
+  });
+  
+  sortedTeams.forEach((team, idx) => {
+    console.log(`  ${idx + 1}. ${team.name}: ${team.points} pts (${team.won}W-${team.lost}L-${team.tied}T) NRR: ${team.nrr.toFixed(3)}`);
+  });
+  
+  console.log('\n✅ League standings updated successfully');
+  console.log('🏆 ========================================\n');
 }
