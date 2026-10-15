@@ -1650,9 +1650,16 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         inn.currentBatsmen[0] = '';
         setNewBatsmanPosition('striker');
         
-        // Check if this was the last ball of the over (ball was 5, now balls is 0 after increment)
+        // Check if this was the last ball of the over (ball was 5 before increment)
         const wasLastBallOfOver = (currentBall === 5);
         if (wasLastBallOfOver) {
+          // Check if innings is complete (using currentOver + 1 because over just incremented)
+          if (currentOver + 1 >= match.totalOvers) {
+            inn.isCompleted = true;
+            handleInningsEnd(newMatch);
+            onUpdate(newMatch);
+            return;
+          }
           setPendingBowlerSelect(true);
         }
         
@@ -1667,11 +1674,13 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
     }
 
-    // End of over
-    if (!isWide && !isNoBall && inn.balls === 0 && inn.overs > 0) {
+    // End of over - check if this was the last ball of the over
+    if (!isWide && !isNoBall && currentBall === 5) {
+      // Rotate strike
       inn.currentBatsmen = [inn.currentBatsmen[1], inn.currentBatsmen[0]];
       
-      if (inn.overs >= match.totalOvers) {
+      // Check if innings is complete (using currentOver + 1 because over just incremented)
+      if (currentOver + 1 >= match.totalOvers) {
         inn.isCompleted = true;
         handleInningsEnd(newMatch);
         onUpdate(newMatch);
@@ -2859,45 +2868,77 @@ async function updateLeagueStandings(match: Match) {
   const inn2 = match.innings?.[1];
   if (!inn1 || !inn2) return;
 
-  const battingFirstTeamId = inn1.battingTeamId;
-  const battingSecondTeamId = inn2.battingTeamId;
+  // ✅ Get team IDs from innings
+  const team1Id = inn1.battingTeamId;
+  const team2Id = inn2.battingTeamId;
 
+  console.log('🏆 Updating league standings for match:', match.id);
+  console.log('🏆 Team 1 (batting first):', team1Id, '- Name:', match.team1.name);
+  console.log('🏆 Team 2 (batting second):', team2Id, '- Name:', match.team2.name);
+  console.log('🏆 Innings 1 score:', inn1.runs);
+  console.log('🏆 Innings 2 score:', inn2.runs);
+
+  // ✅ Determine winner
   let winnerId = '';
-  if ((inn2.runs || 0) > (inn1.runs || 0)) winnerId = battingSecondTeamId;
-  else if ((inn1.runs || 0) > (inn2.runs || 0)) winnerId = battingFirstTeamId;
+  if ((inn2.runs || 0) > (inn1.runs || 0)) {
+    winnerId = team2Id;
+    console.log('🏆 Winner:', team2Id);
+  } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
+    winnerId = team1Id;
+    console.log('🏆 Winner:', team1Id);
+  } else {
+    console.log('🏆 Match Tied');
+  }
 
+  // ✅ Update only the teams that played
   league.teams = league.teams.map(team => {
     const t = { ...team };
-    const isTeam1 = team.id === battingFirstTeamId;
-    const isTeam2 = team.id === battingSecondTeamId;
-
-    if (isTeam1 || isTeam2) {
+    
+    // ✅ Check if this team played in this match
+    const playedInMatch = (team.id === team1Id || team.id === team2Id);
+    
+    if (playedInMatch) {
+      console.log(`🏆 Updating team: ${team.name} (ID: ${team.id})`);
+      
       t.played += 1;
+      
+      // ✅ Get correct innings for this team
+      const isTeam1 = team.id === team1Id;
       const myInnings = isTeam1 ? inn1 : inn2;
       const oppInnings = isTeam1 ? inn2 : inn1;
+      
       t.runsScored += (myInnings.runs || 0);
       t.runsConceded += (oppInnings.runs || 0);
       t.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
       t.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
 
+      // ✅ Update win/loss/tie
       if (winnerId === team.id) {
         t.won += 1;
         t.points += 2;
+        console.log(`🏆 ${team.name} WON - Points: ${t.points}`);
       } else if (winnerId) {
         t.lost += 1;
+        console.log(`🏆 ${team.name} LOST - Points: ${t.points}`);
       } else {
-        // ✅ Match tied - both teams get 1 point
+        // Match tied - both teams get 1 point
         t.tied += 1;
         t.points += 1;
+        console.log(`🏆 ${team.name} TIED - Points: ${t.points}`);
       }
 
+      // ✅ Calculate NRR
       if (t.oversBowled > 0 && t.oversPlayed > 0) {
         t.nrr = (t.runsScored / t.oversBowled) - (t.runsConceded / t.oversPlayed);
       }
+    } else {
+      console.log(`🏆 Skipping team: ${team.name} (ID: ${team.id}) - did not play`);
     }
+    
     return t;
   });
 
   league.matches.push(match.id);
   await saveLeague(league);
+  console.log('✅ League standings updated successfully');
 }
