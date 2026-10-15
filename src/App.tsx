@@ -1584,7 +1584,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
   const getTeamName = (teamId: string) => teamId === match.team1.id ? match.team1.name : match.team2.name;
 
   // ✅ NEW: Process ball - completely rewritten from scratch
-  const processBall = (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
+  const processBall = async (runs: number, isWide: boolean, isNoBall: boolean, isWicket: boolean, wicketType?: string) => {
     // Create deep copy of match
     const newMatch = JSON.parse(JSON.stringify(match)) as Match;
     const inn = newMatch.innings[newMatch.currentInnings];
@@ -1661,7 +1661,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
       if (inn.wickets >= 10) {
         inn.isCompleted = true;
-        handleInningsEnd(newMatch);
+        await handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
         // Clear striker for new batsman
@@ -1674,7 +1674,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
           // Check if innings is complete (using currentOver + 1 because over just incremented)
           if (currentOver + 1 >= match.totalOvers) {
             inn.isCompleted = true;
-            handleInningsEnd(newMatch);
+            await handleInningsEnd(newMatch);
             onUpdate(newMatch);
             return;
           }
@@ -1700,7 +1700,7 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       // Check if innings is complete (using currentOver + 1 because over just incremented)
       if (currentOver + 1 >= match.totalOvers) {
         inn.isCompleted = true;
-        handleInningsEnd(newMatch);
+        await handleInningsEnd(newMatch);
         onUpdate(newMatch);
       } else {
         // Clear bowler for new selection
@@ -1714,14 +1714,14 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Check if target achieved
     if (target && inn.runs >= target) {
       inn.isCompleted = true;
-      handleInningsEnd(newMatch);
+      await handleInningsEnd(newMatch);
     }
 
     onUpdate(newMatch);
   };
 
   // ✅ NEW: Handle innings end
-  const handleInningsEnd = (newMatch: Match) => {
+  const handleInningsEnd = async (newMatch: Match) => {
     if (newMatch.currentInnings === 0) {
       setInningBreak(true);
       onUpdate(newMatch);
@@ -1745,7 +1745,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       newMatch.result = result;
       
       if (newMatch.leagueId) {
-        updateLeagueStandings(newMatch);
+        console.log('🏆 Match completed, updating league standings...');
+        await updateLeagueStandings(newMatch);
+        console.log('🏆 League standings update complete');
       }
       
       setShowMatchComplete(true);
@@ -2877,26 +2879,42 @@ function AdminPanel({ user, onBack }: { user: User; onBack: () => void }) {
 
 // ============= LEAGUE STANDINGS UPDATE =============
 async function updateLeagueStandings(match: Match) {
-  if (!match.leagueId) return;
+  if (!match.leagueId) {
+    console.log('🏆 ❌ No league ID found in match');
+    return;
+  }
+  
+  console.log('🏆 ========== LEAGUE STANDINGS UPDATE ==========');
+  console.log('🏆 Match ID:', match.id);
+  console.log('🏆 League ID:', match.leagueId);
+  
   const leagues = getLeagues();
+  console.log('🏆 All leagues:', leagues.map(l => `${l.name} (${l.id})`).join(', '));
+  
   const league = leagues.find(l => l.id === match.leagueId);
-  if (!league) return;
+  if (!league) {
+    console.log('🏆 ❌ League not found!');
+    return;
+  }
+  
+  console.log('🏆 ✓ League found:', league.name);
+  console.log('🏆 League teams:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
 
   const inn1 = match.innings?.[0];
   const inn2 = match.innings?.[1];
-  if (!inn1 || !inn2) return;
+  if (!inn1 || !inn2) {
+    console.log('🏆 ❌ Innings data missing!');
+    return;
+  }
 
   // ✅ Get team IDs from match (not innings)
   const team1Id = match.team1.id;
   const team2Id = match.team2.id;
 
-  console.log('🏆 ========== LEAGUE STANDINGS UPDATE ==========');
-  console.log('🏆 Match ID:', match.id);
   console.log('🏆 Match Team 1:', match.team1.name, '- ID:', team1Id);
   console.log('🏆 Match Team 2:', match.team2.name, '- ID:', team2Id);
   console.log('🏆 Innings 1 (batting first):', inn1.battingTeamId, '- Score:', inn1.runs);
   console.log('🏆 Innings 2 (batting second):', inn2.battingTeamId, '- Score:', inn2.runs);
-  console.log('🏆 All teams in league:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
 
   // ✅ Determine winner based on innings scores
   let winnerId = '';
@@ -2911,19 +2929,27 @@ async function updateLeagueStandings(match: Match) {
   }
 
   // ✅ Update only the teams that played
+  console.log('🏆 Starting team update loop...');
   league.teams = league.teams.map(team => {
     const t = { ...team };
     
-    // ✅ Check if this team played in this match
-    const playedInMatch = (team.id === team1Id || team.id === team2Id);
+    // ✅ Explicit string comparison for team IDs
+    const isTeam1 = String(team.id).trim() === String(team1Id).trim();
+    const isTeam2 = String(team.id).trim() === String(team2Id).trim();
+    const playedInMatch = isTeam1 || isTeam2;
+    
+    console.log(`🏆 Checking team: ${team.name}`);
+    console.log(`🏆   - Team ID: "${team.id}"`);
+    console.log(`🏆   - Match Team 1 ID: "${team1Id}" - Match: ${isTeam1}`);
+    console.log(`🏆   - Match Team 2 ID: "${team2Id}" - Match: ${isTeam2}`);
+    console.log(`🏆   - Played in this match: ${playedInMatch}`);
     
     if (playedInMatch) {
-      console.log(`🏆 ✓ Updating team: ${team.name} (ID: ${team.id})`);
+      console.log(`🏆 ✓ UPDATING team: ${team.name}`);
       
       t.played += 1;
       
       // ✅ Get correct innings for this team
-      const isTeam1 = team.id === team1Id;
       const myInnings = isTeam1 ? inn1 : inn2;
       const oppInnings = isTeam1 ? inn2 : inn1;
       
@@ -2936,27 +2962,30 @@ async function updateLeagueStandings(match: Match) {
       t.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
 
       // ✅ Update win/loss/tie
-      if (winnerId === team.id) {
+      const isWinner = String(winnerId).trim() === String(team.id).trim();
+      if (isWinner) {
         t.won += 1;
         t.points += 2;
-        console.log(`🏆   - ${team.name} WON! Points: ${t.points}`);
+        console.log(`🏆   - 🏆 ${team.name} WON! Points: ${t.points}`);
       } else if (winnerId) {
         t.lost += 1;
-        console.log(`🏆   - ${team.name} LOST. Points: ${t.points}`);
+        console.log(`🏆   - 😞 ${team.name} LOST. Points: ${t.points}`);
       } else {
         // Match tied - both teams get 1 point
         t.tied += 1;
         t.points += 1;
-        console.log(`🏆   - ${team.name} TIED. Points: ${t.points}`);
+        console.log(`🏆   - 🤝 ${team.name} TIED. Points: ${t.points}`);
       }
 
       // ✅ Calculate NRR
       if (t.oversBowled > 0 && t.oversPlayed > 0) {
         t.nrr = (t.runsScored / t.oversBowled) - (t.runsConceded / t.oversPlayed);
-        console.log(`🏆   - NRR: ${t.nrr.toFixed(3)}`);
+        console.log(`🏆   - 📊 NRR: ${t.nrr.toFixed(3)}`);
       }
+      
+      console.log(`🏆   - Final stats: P=${t.played}, W=${t.won}, L=${t.lost}, T=${t.tied}, Pts=${t.points}, NRR=${t.nrr.toFixed(3)}`);
     } else {
-      console.log(`🏆 ✗ Skipping team: ${team.name} (ID: ${team.id}) - did not play in this match`);
+      console.log(`🏆 ✗ SKIPPING team: ${team.name} - did not play in this match`);
     }
     
     return t;
