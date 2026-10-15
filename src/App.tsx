@@ -1006,6 +1006,99 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
 function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user: User; onCreateLeague: () => void; onCreateMatch: (l: League) => void; onOpenMatch: (m: Match) => void }) {
   const [leagues, setLeagues] = useState(getLeagues(user.id));
 
+  // ✅ Automatic recalculation when league tab opens
+  useEffect(() => {
+    console.log('🔄 Auto-recalculating all league tables...');
+    
+    const allLeagues = getLeagues(user.id);
+    const allMatches = getMatches();
+    
+    allLeagues.forEach(league => {
+      const completedMatches = allMatches.filter(m => 
+        m.leagueId === league.id && m.status === 'completed'
+      );
+      
+      if (completedMatches.length > 0) {
+        console.log(`🏆 Recalculating ${league.name} with ${completedMatches.length} matches`);
+        
+        // Reset all team stats
+        const resetTeams = league.teams.map(team => ({
+          ...team,
+          played: 0,
+          won: 0,
+          lost: 0,
+          tied: 0,
+          points: 0,
+          nrr: 0,
+          runsScored: 0,
+          runsConceded: 0,
+          oversPlayed: 0,
+          oversBowled: 0
+        }));
+        
+        // Recalculate stats for each completed match
+        resetTeams.forEach(team => {
+          completedMatches.forEach(match => {
+            const inn1 = match.innings?.[0];
+            const inn2 = match.innings?.[1];
+            if (!inn1 || !inn2) return;
+            
+            const team1Id = match.team1.id;
+            const team2Id = match.team2.id;
+            
+            const isTeam1 = team.id === team1Id;
+            const isTeam2 = team.id === team2Id;
+            
+            if (isTeam1 || isTeam2) {
+              team.played += 1;
+              
+              const myInnings = isTeam1 ? inn1 : inn2;
+              const oppInnings = isTeam1 ? inn2 : inn1;
+              
+              team.runsScored += myInnings.runs || 0;
+              team.runsConceded += oppInnings.runs || 0;
+              team.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
+              team.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
+              
+              // Determine winner
+              let winnerId = '';
+              if ((inn2.runs || 0) > (inn1.runs || 0)) {
+                winnerId = inn2.battingTeamId;
+              } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
+                winnerId = inn1.battingTeamId;
+              }
+              
+              if (winnerId === team.id) {
+                team.won += 1;
+                team.points += 2;
+              } else if (winnerId) {
+                team.lost += 1;
+                // Losing team gets 0 points, only NRR will be calculated
+              } else {
+                team.tied += 1;
+                team.points += 1;
+              }
+              
+              // Calculate NRR
+              if (team.oversBowled > 0 && team.oversPlayed > 0) {
+                team.nrr = (team.runsScored / team.oversBowled) - (team.runsConceded / team.oversPlayed);
+              }
+            }
+          });
+        });
+        
+        // Update league
+        const updatedLeague = { ...league, teams: resetTeams };
+        saveLeague(updatedLeague);
+        
+        console.log(`✅ ${league.name} recalculated successfully`);
+      }
+    });
+    
+    // Refresh leagues state
+    setLeagues(getLeagues(user.id));
+  }, []);
+
   const handleDeleteLeague = (leagueId: string) => {
     if (window.confirm('Are you sure you want to delete this league and all its matches?')) {
       console.log('Deleting league:', leagueId);
@@ -1051,99 +1144,8 @@ function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user:
 }
 
 function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: League; onCreateMatch: () => void; onOpenMatch: (m: Match) => void; onDelete: () => void }) {
-  const [refreshKey, setRefreshKey] = useState(0);
   const allMatches = getMatches();
   const leagueMatches = allMatches.filter(m => m.leagueId === league.id);
-  
-  // Manual refresh function
-  const handleRefreshTable = () => {
-    console.log('🔄 Manually refreshing league table...');
-    
-    // Get all completed matches for this league
-    const allMatches = getMatches();
-    const completedLeagueMatches = allMatches.filter(m => 
-      m.leagueId === league.id && m.status === 'completed'
-    );
-    
-    console.log(`🔄 Found ${completedLeagueMatches.length} completed matches`);
-    
-    // Reset all team stats
-    const resetTeams = league.teams.map(team => ({
-      ...team,
-      played: 0,
-      won: 0,
-      lost: 0,
-      tied: 0,
-      points: 0,
-      nrr: 0,
-      runsScored: 0,
-      runsConceded: 0,
-      oversPlayed: 0,
-      oversBowled: 0
-    }));
-    
-    // Recalculate stats for each completed match
-    resetTeams.forEach(team => {
-      completedLeagueMatches.forEach(match => {
-        const inn1 = match.innings?.[0];
-        const inn2 = match.innings?.[1];
-        if (!inn1 || !inn2) return;
-        
-        const team1Id = match.team1.id;
-        const team2Id = match.team2.id;
-        
-        const isTeam1 = team.id === team1Id;
-        const isTeam2 = team.id === team2Id;
-        
-        if (isTeam1 || isTeam2) {
-          team.played += 1;
-          
-          const myInnings = isTeam1 ? inn1 : inn2;
-          const oppInnings = isTeam1 ? inn2 : inn1;
-          
-          team.runsScored += myInnings.runs || 0;
-          team.runsConceded += oppInnings.runs || 0;
-          team.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
-          team.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
-          
-          // Determine winner
-          let winnerId = '';
-          if ((inn2.runs || 0) > (inn1.runs || 0)) {
-            winnerId = inn2.battingTeamId;
-          } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
-            winnerId = inn1.battingTeamId;
-          }
-          
-          if (winnerId === team.id) {
-            team.won += 1;
-            team.points += 2;
-          } else if (winnerId) {
-            team.lost += 1;
-          } else {
-            team.tied += 1;
-            team.points += 1;
-          }
-          
-          // Calculate NRR
-          if (team.oversBowled > 0 && team.oversPlayed > 0) {
-            team.nrr = (team.runsScored / team.oversBowled) - (team.runsConceded / team.oversPlayed);
-          }
-        }
-      });
-    });
-    
-    // Update league with reset teams
-    const updatedLeague = { ...league, teams: resetTeams };
-    saveLeague(updatedLeague);
-    
-    console.log('✅ League table recalculated successfully');
-    console.log('📊 Final standings:');
-    resetTeams.forEach((team, idx) => {
-      console.log(`📊 ${idx + 1}. ${team.name}: ${team.points} pts, ${team.won}W-${team.lost}L-${team.tied}T, NRR: ${team.nrr.toFixed(3)}`);
-    });
-    
-    setRefreshKey(k => k + 1);
-  };
   
   // ✅ Sort teams by points (descending), then by NRR (descending), then by wins (descending)
   const sortedTeams = [...league.teams].sort((a, b) => {
@@ -1169,9 +1171,6 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
       <div className="flex justify-between items-center mb-3">
         <h3 className="font-bold text-lg">{league.name}</h3>
         <div className="flex gap-1">
-          <button onClick={handleRefreshTable} className="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-700" title="Refresh Table">
-            🔄 Refresh
-          </button>
           <button onClick={onCreateMatch} className="bg-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">
             + Match
           </button>
