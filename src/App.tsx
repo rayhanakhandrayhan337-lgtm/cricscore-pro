@@ -1051,8 +1051,99 @@ function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user:
 }
 
 function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: League; onCreateMatch: () => void; onOpenMatch: (m: Match) => void; onDelete: () => void }) {
+  const [refreshKey, setRefreshKey] = useState(0);
   const allMatches = getMatches();
   const leagueMatches = allMatches.filter(m => m.leagueId === league.id);
+  
+  // Manual refresh function
+  const handleRefreshTable = () => {
+    console.log('🔄 Manually refreshing league table...');
+    
+    // Get all completed matches for this league
+    const allMatches = getMatches();
+    const completedLeagueMatches = allMatches.filter(m => 
+      m.leagueId === league.id && m.status === 'completed'
+    );
+    
+    console.log(`🔄 Found ${completedLeagueMatches.length} completed matches`);
+    
+    // Reset all team stats
+    const resetTeams = league.teams.map(team => ({
+      ...team,
+      played: 0,
+      won: 0,
+      lost: 0,
+      tied: 0,
+      points: 0,
+      nrr: 0,
+      runsScored: 0,
+      runsConceded: 0,
+      oversPlayed: 0,
+      oversBowled: 0
+    }));
+    
+    // Recalculate stats for each completed match
+    resetTeams.forEach(team => {
+      completedLeagueMatches.forEach(match => {
+        const inn1 = match.innings?.[0];
+        const inn2 = match.innings?.[1];
+        if (!inn1 || !inn2) return;
+        
+        const team1Id = match.team1.id;
+        const team2Id = match.team2.id;
+        
+        const isTeam1 = team.id === team1Id;
+        const isTeam2 = team.id === team2Id;
+        
+        if (isTeam1 || isTeam2) {
+          team.played += 1;
+          
+          const myInnings = isTeam1 ? inn1 : inn2;
+          const oppInnings = isTeam1 ? inn2 : inn1;
+          
+          team.runsScored += myInnings.runs || 0;
+          team.runsConceded += oppInnings.runs || 0;
+          team.oversPlayed += (myInnings.overs || 0) + (myInnings.balls || 0) / 6;
+          team.oversBowled += (oppInnings.overs || 0) + (oppInnings.balls || 0) / 6;
+          
+          // Determine winner
+          let winnerId = '';
+          if ((inn2.runs || 0) > (inn1.runs || 0)) {
+            winnerId = inn2.battingTeamId;
+          } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
+            winnerId = inn1.battingTeamId;
+          }
+          
+          if (winnerId === team.id) {
+            team.won += 1;
+            team.points += 2;
+          } else if (winnerId) {
+            team.lost += 1;
+          } else {
+            team.tied += 1;
+            team.points += 1;
+          }
+          
+          // Calculate NRR
+          if (team.oversBowled > 0 && team.oversPlayed > 0) {
+            team.nrr = (team.runsScored / team.oversBowled) - (team.runsConceded / team.oversPlayed);
+          }
+        }
+      });
+    });
+    
+    // Update league with reset teams
+    const updatedLeague = { ...league, teams: resetTeams };
+    saveLeague(updatedLeague);
+    
+    console.log('✅ League table recalculated successfully');
+    console.log('📊 Final standings:');
+    resetTeams.forEach((team, idx) => {
+      console.log(`📊 ${idx + 1}. ${team.name}: ${team.points} pts, ${team.won}W-${team.lost}L-${team.tied}T, NRR: ${team.nrr.toFixed(3)}`);
+    });
+    
+    setRefreshKey(k => k + 1);
+  };
   
   // ✅ Sort teams by points (descending), then by NRR (descending), then by wins (descending)
   const sortedTeams = [...league.teams].sort((a, b) => {
@@ -1078,6 +1169,9 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
       <div className="flex justify-between items-center mb-3">
         <h3 className="font-bold text-lg">{league.name}</h3>
         <div className="flex gap-1">
+          <button onClick={handleRefreshTable} className="bg-green-600 px-3 py-1 rounded text-xs font-bold hover:bg-green-700" title="Refresh Table">
+            🔄 Refresh
+          </button>
           <button onClick={onCreateMatch} className="bg-blue-600 px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">
             + Match
           </button>
@@ -1312,11 +1406,39 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
             <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="text-sm text-gray-400">Total Overs</label>
-                <button onClick={randomizeOvers} className="text-xs bg-purple-600 px-3 py-1 rounded hover:bg-purple-700">🎲 Random</button>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-green-400">{totalOvers}</span>
+                  <span className="text-xs text-gray-400">overs</span>
+                  <button onClick={randomizeOvers} className="text-xs bg-purple-600 px-3 py-1 rounded hover:bg-purple-700">🎲 Random</button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                {[3, 5, 10, 15, 20].map(o => (
-                  <button key={o} onClick={() => setTotalOvers(o)} className={`flex-1 py-2 rounded-lg font-bold ${totalOvers === o ? 'bg-green-600' : 'bg-gray-700'}`}>{o}</button>
+              
+              {/* Slider for overs selection (2-20) */}
+              <div className="bg-gray-800 rounded-xl p-4">
+                <input
+                  type="range"
+                  min="2"
+                  max="20"
+                  value={totalOvers}
+                  onChange={(e) => setTotalOvers(parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                  style={{
+                    background: `linear-gradient(to right, #10b981 0%, #10b981 ${((totalOvers - 2) / 18) * 100}%, #374151 ${((totalOvers - 2) / 18) * 100}%, #374151 100%)`
+                  }}
+                />
+                <div className="flex justify-between text-xs text-gray-400 mt-2">
+                  <span>2</span>
+                  <span>5</span>
+                  <span>10</span>
+                  <span>15</span>
+                  <span>20</span>
+                </div>
+              </div>
+              
+              {/* Quick select buttons */}
+              <div className="flex gap-2 mt-3">
+                {[2, 5, 10, 15, 20].map(o => (
+                  <button key={o} onClick={() => setTotalOvers(o)} className={`flex-1 py-2 rounded-lg font-bold text-sm ${totalOvers === o ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'}`}>{o}</button>
                 ))}
               </div>
             </div>
