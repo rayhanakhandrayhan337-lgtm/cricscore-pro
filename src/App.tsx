@@ -14,6 +14,13 @@ export default function App() {
       import('./firebase').then(({ syncAllDataToFirebase }) => {
         syncAllDataToFirebase(user.id).catch(err => console.warn('Sync failed:', err));
       });
+      
+      // Reload user data to get latest profile image
+      const users = getUsers();
+      const currentUserData = users.find(u => u.id === user.id);
+      if (currentUserData) {
+        setUser(currentUserData);
+      }
     }
 
     const timer = setTimeout(() => {
@@ -1465,12 +1472,25 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     const inn = newMatch.innings[newMatch.currentInnings];
     if (!inn) return;
     
-    // Create ball event
+    // Store current over/ball before update
+    const currentOver = inn.overs;
+    const currentBall = inn.balls;
+
+    // Update balls count FIRST (not for wide/no-ball)
+    if (!isWide && !isNoBall) {
+      inn.balls += 1;
+      if (inn.balls === 6) {
+        inn.overs += 1;
+        inn.balls = 0;
+      }
+    }
+
+    // Create ball event with correct over/ball
     const ballEvent: BallEvent = {
       id: `ball_${Date.now()}_${Math.random()}`,
-      ballNumber: inn.overs * 6 + inn.balls + (isWide || isNoBall ? 0 : 1),
-      over: inn.overs,
-      ball: inn.balls + (isWide || isNoBall ? 0 : 1),
+      ballNumber: currentOver * 6 + currentBall + (isWide || isNoBall ? 0 : 1),
+      over: currentOver,
+      ball: currentBall + (isWide || isNoBall ? 0 : 1),
       runs,
       isWide,
       isNoBall,
@@ -1484,15 +1504,6 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
     // Update innings runs and events
     inn.runs += runs;
     inn.ballEvents.push(ballEvent);
-
-    // Update balls count (not for wide/no-ball)
-    if (!isWide && !isNoBall) {
-      inn.balls += 1;
-      if (inn.balls === 6) {
-        inn.overs += 1;
-        inn.balls = 0;
-      }
-    }
 
     // Update extras
     if (isWide) inn.extras.wides += runs;
@@ -1539,9 +1550,9 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         inn.currentBatsmen[0] = '';
         setNewBatsmanPosition('striker');
         
-        // Check if last ball of over
-        const wasLastBall = (inn.balls === 0 && inn.overs > 0);
-        if (wasLastBall) {
+        // Check if this was the last ball of the over (ball was 5, now balls is 0 after increment)
+        const wasLastBallOfOver = (currentBall === 5);
+        if (wasLastBallOfOver) {
           setPendingBowlerSelect(true);
         }
         
@@ -1893,23 +1904,25 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
 
   return (
     <div className="h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black text-white overflow-hidden flex flex-col">
-      {/* Header - Compact */}
-      <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-900 px-3 py-2 shadow-lg flex-shrink-0">
+      {/* Header - Enhanced */}
+      <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-900 px-4 py-3 shadow-lg flex-shrink-0">
         <div className="flex items-center justify-between">
-          <button onClick={onBack} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg transition-all">
+          <button onClick={onBack} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-all">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
           <div className="text-center">
-            <div className="flex items-center gap-1.5 justify-center">
-              <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-              <p className="text-[10px] text-red-200 font-bold tracking-wider">LIVE</p>
+            <div className="flex items-center gap-2 justify-center mb-1">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <p className="text-xs text-red-200 font-bold tracking-wider">LIVE</p>
             </div>
-            <p className="font-bold text-xs text-white">{getTeamName(innings.battingTeamId)} vs {getTeamName(innings.bowlingTeamId)}</p>
+            <p className="font-black text-lg text-white uppercase tracking-wide">
+              {getTeamName(innings.battingTeamId)} <span className="text-red-300 text-sm">VS</span> {getTeamName(innings.bowlingTeamId)}
+            </p>
           </div>
-          <button onClick={handleUndo} className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 px-2 py-1.5 rounded-lg text-[10px] font-bold shadow-lg transition-all flex items-center gap-1">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onClick={handleUndo} className="bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 px-3 py-2 rounded-lg text-xs font-bold shadow-lg transition-all flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
             </svg>
             <span>Undo</span>
@@ -1917,30 +1930,34 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
         </div>
       </div>
 
-      {/* Score Card - Compact */}
-      <div className="bg-gradient-to-b from-gray-800 to-gray-900 px-3 py-2 shadow-xl flex-shrink-0">
+      {/* Score Card - Enhanced */}
+      <div className="bg-gradient-to-b from-gray-800 to-gray-900 px-4 py-3 shadow-xl flex-shrink-0">
         <div className="text-center">
-          <p className="text-[10px] text-gray-400 mb-1">{getTeamName(innings.battingTeamId)} - Innings {match.currentInnings + 1}</p>
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-4xl font-black bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent">{innings.runs}</span>
-            <span className="text-2xl font-bold text-gray-400">/{innings.wickets}</span>
+          <div className="inline-block bg-gradient-to-r from-green-600 to-emerald-600 rounded-full px-4 py-1 mb-2 shadow-lg">
+            <p className="text-xs text-white font-bold">{getTeamName(innings.battingTeamId)} - Innings {match.currentInnings + 1}</p>
           </div>
-          <p className="text-xs text-gray-300 mb-1">
-            <span className="font-bold text-white">{innings.overs}.{innings.balls}</span>
-            <span className="text-gray-400"> / {match.totalOvers} ov</span>
-          </p>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <span className="text-5xl font-black bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 bg-clip-text text-transparent drop-shadow-lg">{innings.runs}</span>
+            <span className="text-3xl font-bold text-gray-400">/{innings.wickets}</span>
+          </div>
+          <div className="inline-block bg-gray-700/50 rounded-full px-4 py-1 mb-2">
+            <p className="text-sm text-gray-300">
+              <span className="font-bold text-white text-lg">{innings.overs}.{innings.balls}</span>
+              <span className="text-gray-400"> / {match.totalOvers} overs</span>
+            </p>
+          </div>
           <div className="flex justify-center gap-2">
-            <div className="bg-blue-500/20 border border-blue-500/30 rounded px-2 py-0.5">
-              <span className="text-[10px] text-blue-300 font-semibold">CRR: {runRate}</span>
+            <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg px-3 py-1">
+              <span className="text-xs text-blue-300 font-semibold">CRR: {runRate}</span>
             </div>
             {reqRunRate && (
-              <div className="bg-yellow-500/20 border border-yellow-500/30 rounded px-2 py-0.5">
-                <span className="text-[10px] text-yellow-300 font-semibold">RRR: {reqRunRate}</span>
+              <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg px-3 py-1">
+                <span className="text-xs text-yellow-300 font-semibold">RRR: {reqRunRate}</span>
               </div>
             )}
             {remaining !== null && (
-              <div className="bg-red-500/20 border border-red-500/30 rounded px-2 py-0.5">
-                <span className="text-[10px] text-red-300 font-semibold">Need: {remaining} off {ballsRemaining}</span>
+              <div className="bg-red-500/20 border border-red-500/30 rounded-lg px-3 py-1">
+                <span className="text-xs text-red-300 font-semibold">Need: {remaining} off {ballsRemaining}</span>
               </div>
             )}
           </div>
@@ -1950,8 +1967,12 @@ function LiveScoringScreen({ match, onBack, onUpdate }: { match: Match; onBack: 
       {/* Batsmen Cards - Ultra Compact */}
       <div className="px-3 py-1.5 flex-shrink-0">
         <div className="grid grid-cols-2 gap-2">
-          {/* Striker Card */}
-          <div className={`bg-gradient-to-br from-green-900/60 to-green-800/40 rounded-lg p-1.5 border-2 shadow-lg ${!strikerId ? 'border-yellow-500/70 animate-pulse' : striker?.isOut ? 'border-red-700/50 opacity-60' : 'border-green-600/50'}`}>
+          {/* Striker Card with Active Red Circle */}
+          <div className={`relative bg-gradient-to-br from-green-900/60 to-green-800/40 rounded-lg p-1.5 border-2 shadow-lg ${!strikerId ? 'border-yellow-500/70 animate-pulse' : striker?.isOut ? 'border-red-700/50 opacity-60' : 'border-green-600/50'}`}>
+            {/* Active Red Circle Indicator */}
+            {strikerId && !striker?.isOut && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg animate-pulse"></div>
+            )}
             <div className="flex items-center gap-1 mb-0.5">
               <div className="bg-green-500/30 p-0.5 rounded">
                 <svg className="w-2.5 h-2.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
