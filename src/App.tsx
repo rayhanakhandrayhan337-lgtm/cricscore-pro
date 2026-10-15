@@ -1053,7 +1053,25 @@ function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user:
 function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: League; onCreateMatch: () => void; onOpenMatch: (m: Match) => void; onDelete: () => void }) {
   const allMatches = getMatches();
   const leagueMatches = allMatches.filter(m => m.leagueId === league.id);
-  const sortedTeams = [...league.teams].sort((a, b) => b.points - a.points || b.nrr - a.nrr);
+  
+  // ✅ Sort teams by points (descending), then by NRR (descending), then by wins (descending)
+  const sortedTeams = [...league.teams].sort((a, b) => {
+    // First sort by points (highest first)
+    if (b.points !== a.points) {
+      return b.points - a.points;
+    }
+    // If points are equal, sort by NRR (highest first)
+    if (b.nrr !== a.nrr) {
+      return b.nrr - a.nrr;
+    }
+    // If NRR are also equal, sort by wins (highest first)
+    return b.won - a.won;
+  });
+  
+  console.log('📊 League Point Table:', league.name);
+  sortedTeams.forEach((team, idx) => {
+    console.log(`📊 ${idx + 1}. ${team.name}: ${team.points} pts, NRR: ${team.nrr.toFixed(3)}, Wins: ${team.won}`);
+  });
 
   return (
     <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
@@ -2868,24 +2886,26 @@ async function updateLeagueStandings(match: Match) {
   const inn2 = match.innings?.[1];
   if (!inn1 || !inn2) return;
 
-  // ✅ Get team IDs from innings
-  const team1Id = inn1.battingTeamId;
-  const team2Id = inn2.battingTeamId;
+  // ✅ Get team IDs from match (not innings)
+  const team1Id = match.team1.id;
+  const team2Id = match.team2.id;
 
-  console.log('🏆 Updating league standings for match:', match.id);
-  console.log('🏆 Team 1 (batting first):', team1Id, '- Name:', match.team1.name);
-  console.log('🏆 Team 2 (batting second):', team2Id, '- Name:', match.team2.name);
-  console.log('🏆 Innings 1 score:', inn1.runs);
-  console.log('🏆 Innings 2 score:', inn2.runs);
+  console.log('🏆 ========== LEAGUE STANDINGS UPDATE ==========');
+  console.log('🏆 Match ID:', match.id);
+  console.log('🏆 Match Team 1:', match.team1.name, '- ID:', team1Id);
+  console.log('🏆 Match Team 2:', match.team2.name, '- ID:', team2Id);
+  console.log('🏆 Innings 1 (batting first):', inn1.battingTeamId, '- Score:', inn1.runs);
+  console.log('🏆 Innings 2 (batting second):', inn2.battingTeamId, '- Score:', inn2.runs);
+  console.log('🏆 All teams in league:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
 
-  // ✅ Determine winner
+  // ✅ Determine winner based on innings scores
   let winnerId = '';
   if ((inn2.runs || 0) > (inn1.runs || 0)) {
-    winnerId = team2Id;
-    console.log('🏆 Winner:', team2Id);
+    winnerId = inn2.battingTeamId;
+    console.log('🏆 Winner:', inn2.battingTeamId, '(Team 2 - batting second)');
   } else if ((inn1.runs || 0) > (inn2.runs || 0)) {
-    winnerId = team1Id;
-    console.log('🏆 Winner:', team1Id);
+    winnerId = inn1.battingTeamId;
+    console.log('🏆 Winner:', inn1.battingTeamId, '(Team 1 - batting first)');
   } else {
     console.log('🏆 Match Tied');
   }
@@ -2898,7 +2918,7 @@ async function updateLeagueStandings(match: Match) {
     const playedInMatch = (team.id === team1Id || team.id === team2Id);
     
     if (playedInMatch) {
-      console.log(`🏆 Updating team: ${team.name} (ID: ${team.id})`);
+      console.log(`🏆 ✓ Updating team: ${team.name} (ID: ${team.id})`);
       
       t.played += 1;
       
@@ -2906,6 +2926,9 @@ async function updateLeagueStandings(match: Match) {
       const isTeam1 = team.id === team1Id;
       const myInnings = isTeam1 ? inn1 : inn2;
       const oppInnings = isTeam1 ? inn2 : inn1;
+      
+      console.log(`🏆   - My innings: ${myInnings.runs} runs, ${myInnings.overs}.${myInnings.balls} overs`);
+      console.log(`🏆   - Opp innings: ${oppInnings.runs} runs, ${oppInnings.overs}.${oppInnings.balls} overs`);
       
       t.runsScored += (myInnings.runs || 0);
       t.runsConceded += (oppInnings.runs || 0);
@@ -2916,23 +2939,24 @@ async function updateLeagueStandings(match: Match) {
       if (winnerId === team.id) {
         t.won += 1;
         t.points += 2;
-        console.log(`🏆 ${team.name} WON - Points: ${t.points}`);
+        console.log(`🏆   - ${team.name} WON! Points: ${t.points}`);
       } else if (winnerId) {
         t.lost += 1;
-        console.log(`🏆 ${team.name} LOST - Points: ${t.points}`);
+        console.log(`🏆   - ${team.name} LOST. Points: ${t.points}`);
       } else {
         // Match tied - both teams get 1 point
         t.tied += 1;
         t.points += 1;
-        console.log(`🏆 ${team.name} TIED - Points: ${t.points}`);
+        console.log(`🏆   - ${team.name} TIED. Points: ${t.points}`);
       }
 
       // ✅ Calculate NRR
       if (t.oversBowled > 0 && t.oversPlayed > 0) {
         t.nrr = (t.runsScored / t.oversBowled) - (t.runsConceded / t.oversPlayed);
+        console.log(`🏆   - NRR: ${t.nrr.toFixed(3)}`);
       }
     } else {
-      console.log(`🏆 Skipping team: ${team.name} (ID: ${team.id}) - did not play`);
+      console.log(`🏆 ✗ Skipping team: ${team.name} (ID: ${team.id}) - did not play in this match`);
     }
     
     return t;
@@ -2940,5 +2964,11 @@ async function updateLeagueStandings(match: Match) {
 
   league.matches.push(match.id);
   await saveLeague(league);
+  
+  console.log('🏆 ========== FINAL STANDINGS ==========');
+  league.teams.forEach((team, idx) => {
+    console.log(`🏆 ${idx + 1}. ${team.name}: ${team.points} pts, ${team.won}W-${team.lost}L-${team.tied || 0}T, NRR: ${team.nrr.toFixed(3)}`);
+  });
   console.log('✅ League standings updated successfully');
+  console.log('🏆 =========================================');
 }
