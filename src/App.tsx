@@ -216,15 +216,32 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onloadend = () => {
-        const imageUrl = reader.result as string;
-        // Save to localStorage immediately
-        localStorage.setItem(`profile_image_${user.id}`, imageUrl);
-        setUserProfileImage(user.id, imageUrl);
-        onUpdate({ ...user, profileImage: imageUrl });
-        setMessage('Profile image updated!');
-        setTimeout(() => setMessage(''), 3000);
+        try {
+          const imageUrl = reader.result as string;
+          // Save to localStorage immediately
+          localStorage.setItem(`profile_image_${user.id}`, imageUrl);
+          setUserProfileImage(user.id, imageUrl);
+          onUpdate({ ...user, profileImage: imageUrl });
+          setMessage('Profile image updated!');
+          setTimeout(() => setMessage(''), 3000);
+        } catch (err) {
+          console.error('❌ Error saving profile image:', err);
+          setError('Failed to save image. Please try again.');
+          setTimeout(() => setError(''), 3000);
+        }
+      };
+      reader.onerror = () => {
+        setError('Failed to read image file');
+        setTimeout(() => setError(''), 3000);
       };
       reader.readAsDataURL(file);
     }
@@ -1289,8 +1306,8 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   useEffect(() => {
     if (league && league.teams.length > 0) {
       console.log('🏆 League loaded with teams:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
-      // Auto-select first two teams if available
-      if (league.teams.length >= 2) {
+      // Only auto-select if no teams are selected yet
+      if (!selectedTeam1Id && !selectedTeam2Id && league.teams.length >= 2) {
         setSelectedTeam1Id(league.teams[0].id);
         setSelectedTeam2Id(league.teams[1].id);
         setTeam1Name(league.teams[0].name);
