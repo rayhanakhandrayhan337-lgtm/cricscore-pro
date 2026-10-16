@@ -74,11 +74,20 @@ export async function login(email: string, password: string): Promise<{ success:
   
   const userWithProfile: User = {
     ...user,
-    profileImage: savedImage || user.profileImage,
+    profileImage: savedImage || user.profileImage || '',
     name: savedName || user.name
   };
   
+  // Update user in users array
+  const allUsers = getUsers();
+  const userIndex = allUsers.findIndex(u => u.id === user.id);
+  if (userIndex >= 0) {
+    allUsers[userIndex] = userWithProfile;
+    saveUsers(allUsers);
+  }
+  
   setCurrentUser(userWithProfile);
+  console.log('✅ User logged in with profile:', userWithProfile.name, userWithProfile.profileImage ? '(has image)' : '(no image)');
   
   // Login to Firebase and sync user data
   try {
