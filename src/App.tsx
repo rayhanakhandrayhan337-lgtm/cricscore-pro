@@ -216,23 +216,71 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image size must be less than 5MB');
+      // Check file size (max 1MB for mobile compatibility)
+      if (file.size > 1 * 1024 * 1024) {
+        setError('Image size must be less than 1MB');
         setTimeout(() => setError(''), 3000);
         return;
       }
       
+      // Compress image before saving
       const reader = new FileReader();
       reader.onloadend = () => {
         try {
           const imageUrl = reader.result as string;
-          // Save to localStorage immediately
-          localStorage.setItem(`profile_image_${user.id}`, imageUrl);
-          setUserProfileImage(user.id, imageUrl);
-          onUpdate({ ...user, profileImage: imageUrl });
-          setMessage('Profile image updated!');
-          setTimeout(() => setMessage(''), 3000);
+          
+          // Create image element to compress
+          const img = new Image();
+          img.onload = () => {
+            // Create canvas to resize image
+            const canvas = document.createElement('canvas');
+            const maxSize = 150; // Max width/height for profile pic
+            let width = img.width;
+            let height = img.height;
+            
+            // Calculate new dimensions
+            if (width > height) {
+              if (width > maxSize) {
+                height = (height * maxSize) / width;
+                width = maxSize;
+              }
+            } else {
+              if (height > maxSize) {
+                width = (width * maxSize) / height;
+                height = maxSize;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw image on canvas
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // Convert to base64 with lower quality (0.5 for smaller size)
+              const compressedImageUrl = canvas.toDataURL('image/jpeg', 0.5);
+              
+              // Check if localStorage has space
+              try {
+                localStorage.setItem(`profile_image_${user.id}`, compressedImageUrl);
+                setUserProfileImage(user.id, compressedImageUrl);
+                onUpdate({ ...user, profileImage: compressedImageUrl });
+                setMessage('✅ Profile image updated!');
+                setTimeout(() => setMessage(''), 3000);
+              } catch (storageError) {
+                console.error('❌ localStorage quota exceeded:', storageError);
+                setError('Storage full! Please clear browser data or use smaller image.');
+                setTimeout(() => setError(''), 3000);
+              }
+            }
+          };
+          img.onerror = () => {
+            setError('Failed to load image');
+            setTimeout(() => setError(''), 3000);
+          };
+          img.src = imageUrl;
         } catch (err) {
           console.error('❌ Error saving profile image:', err);
           setError('Failed to save image. Please try again.');
@@ -430,7 +478,24 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
   }
 
   if (showCreateMatch || leagueMatchSetup) {
-    return <CreateMatchScreen user={user} league={leagueMatchSetup || undefined} onBack={() => { setShowCreateMatch(false); setLeagueMatchSetup(null); }} onStart={(match) => { setActiveMatch(match); setShowCreateMatch(false); setLeagueMatchSetup(null); }} />;
+    return <CreateMatchScreen 
+      user={user} 
+      league={leagueMatchSetup || undefined} 
+      onBack={() => { 
+        setShowCreateMatch(false); 
+        setLeagueMatchSetup(null); 
+      }} 
+      onStart={(match) => { 
+        console.log('🏏 Match started:', match.id);
+        setActiveMatch(match); 
+        setShowCreateMatch(false); 
+        setLeagueMatchSetup(null);
+        // Force re-render after a short delay
+        setTimeout(() => {
+          setActiveMatch({...match});
+        }, 100);
+      }} 
+    />;
   }
 
   if (showLeagueCreate) {
@@ -1023,6 +1088,20 @@ function BroadcastScreen({ match, onBack }: { match: Match; onBack: () => void }
 function LeagueTab({ user, onCreateLeague, onCreateMatch, onOpenMatch }: { user: User; onCreateLeague: () => void; onCreateMatch: (l: League) => void; onOpenMatch: (m: Match) => void }) {
   const [leagues, setLeagues] = useState(getLeagues(user.id));
 
+  // ✅ Refresh leagues periodically
+  useEffect(() => {
+    const refreshLeagues = () => {
+      const updated = getLeagues(user.id);
+      setLeagues([...updated]);
+    };
+    
+    refreshLeagues();
+    
+    // Refresh every 2 seconds
+    const interval = setInterval(refreshLeagues, 2000);
+    return () => clearInterval(interval);
+  }, [user.id]);
+
   // ✅ Automatic recalculation when league tab opens
   useEffect(() => {
     console.log('🔄 Auto-recalculating all league tables...');
@@ -1250,6 +1329,20 @@ function LeagueCard({ league, onCreateMatch, onOpenMatch, onDelete }: { league: 
 function CustomTab({ user, onCreateMatch, onOpenMatch }: { user: User; onCreateMatch: () => void; onOpenMatch: (m: Match) => void }) {
   const [matches, setMatches] = useState(getMatches(user.id).filter(m => !m.leagueId));
 
+  // ✅ Refresh matches when component mounts or user changes
+  useEffect(() => {
+    const refreshMatches = () => {
+      const updated = getMatches(user.id).filter(m => !m.leagueId);
+      setMatches([...updated]);
+    };
+    
+    refreshMatches();
+    
+    // Refresh every 2 seconds to catch new matches
+    const interval = setInterval(refreshMatches, 2000);
+    return () => clearInterval(interval);
+  }, [user.id]);
+
   const handleDelete = (matchId: string) => {
     if (window.confirm('Are you sure you want to delete this match?')) {
       console.log('Deleting custom match:', matchId);
@@ -1306,8 +1399,8 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
   useEffect(() => {
     if (league && league.teams.length > 0) {
       console.log('🏆 League loaded with teams:', league.teams.map(t => `${t.name} (${t.id})`).join(', '));
-      // Only auto-select if no teams are selected yet
-      if (!selectedTeam1Id && !selectedTeam2Id && league.teams.length >= 2) {
+      // Always reset to first two teams when league changes (for new match creation)
+      if (league.teams.length >= 2) {
         setSelectedTeam1Id(league.teams[0].id);
         setSelectedTeam2Id(league.teams[1].id);
         setTeam1Name(league.teams[0].name);
@@ -1315,6 +1408,14 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
         setTeam1Players(league.teams[0].players);
         setTeam2Players(league.teams[1].players);
       }
+    } else {
+      // Reset for custom match
+      setSelectedTeam1Id('');
+      setSelectedTeam2Id('');
+      setTeam1Name('');
+      setTeam2Name('');
+      setTeam1Players([]);
+      setTeam2Players([]);
     }
   }, [league]);
 
