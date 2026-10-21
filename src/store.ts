@@ -37,9 +37,9 @@ export function setCurrentUser(user: User | null) {
 }
 
 export async function login(email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> {
-  const users = getUsers();
-  const user = users.find(u => u.email === email);
+  console.log('🔐 Login attempt for:', email);
   
+  // Check admin login
   if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
     const adminUser: User = {
       id: 'admin',
@@ -63,10 +63,63 @@ export async function login(email: string, password: string): Promise<{ success:
     return { success: true, user: adminUser };
   }
   
-  if (!user) return { success: false, error: 'User not found' };
+  // First try to find user in localStorage
+  let users = getUsers();
+  let user = users.find(u => u.email === email);
   
+  // If user not found in localStorage, try to fetch from Firebase
+  if (!user) {
+    console.log('⚠️ User not found in localStorage, checking Firebase...');
+    try {
+      const { firebaseLogin, getAllUsersFromFirebase } = await import('./firebase');
+      
+      // Try Firebase login first
+      const firebaseUser = await firebaseLogin(email, password);
+      console.log('✅ Firebase login successful:', firebaseUser.uid);
+      
+      // Fetch all users from Firebase
+      const firebaseUsers = await getAllUsersFromFirebase();
+      const firebaseUserData = firebaseUsers.find((u: any) => u.email === email);
+      
+      if (firebaseUserData) {
+        console.log('✅ User found in Firebase, restoring to localStorage...');
+        
+        // Restore user to localStorage
+        const restoredUser: User = {
+          id: firebaseUserData.id || firebaseUser.uid,
+          email: firebaseUserData.email || email,
+          name: firebaseUserData.name || firebaseUser.displayName || 'User',
+          isAdmin: firebaseUserData.isAdmin || false,
+          createdAt: firebaseUserData.createdAt || new Date().toISOString(),
+          profileImage: firebaseUserData.profileImage || ''
+        };
+        
+        // Save to localStorage
+        users.push(restoredUser);
+        saveUsers(users);
+        localStorage.setItem(`cric_pass_${email}`, password);
+        
+        user = restoredUser;
+        console.log('✅ User restored to localStorage:', restoredUser.email);
+      } else {
+        console.error('❌ User not found in Firebase either');
+        return { success: false, error: 'User not found. Please sign up first.' };
+      }
+    } catch (error: any) {
+      console.error('❌ Firebase login failed:', error.message);
+      // If Firebase login fails, check if it's wrong password
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        return { success: false, error: 'Invalid password' };
+      }
+      return { success: false, error: 'User not found. Please sign up first.' };
+    }
+  }
+  
+  // Verify password
   const storedPass = localStorage.getItem(`cric_pass_${email}`);
-  if (storedPass !== password) return { success: false, error: 'Invalid password' };
+  if (storedPass && storedPass !== password) {
+    return { success: false, error: 'Invalid password' };
+  }
   
   // Load saved profile image and name from localStorage
   const savedImage = localStorage.getItem(`profile_image_${user.id}`);
