@@ -216,9 +216,9 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (max 1MB for mobile compatibility)
-      if (file.size > 1 * 1024 * 1024) {
-        setError('Image size must be less than 1MB');
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
         setTimeout(() => setError(''), 3000);
         return;
       }
@@ -234,7 +234,7 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
           img.onload = () => {
             // Create canvas to resize image
             const canvas = document.createElement('canvas');
-            const maxSize = 150; // Max width/height for profile pic
+            const maxSize = 300; // Max width/height for profile pic (increased from 150)
             let width = img.width;
             let height = img.height;
             
@@ -259,8 +259,8 @@ function ProfileScreen({ user, onUpdate, onBack, onLogout }: { user: User; onUpd
             if (ctx) {
               ctx.drawImage(img, 0, 0, width, height);
               
-              // Convert to base64 with lower quality (0.5 for smaller size)
-              const compressedImageUrl = canvas.toDataURL('image/jpeg', 0.5);
+              // Convert to base64 with higher quality (0.8 for better quality)
+              const compressedImageUrl = canvas.toDataURL('image/jpeg', 0.8);
               
               // Check if localStorage has space
               try {
@@ -465,12 +465,24 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
     { icon: '🏏', label: 'Custom' },
   ];
 
-  if (activeMatch && activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
-    return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
-  }
+  // Check if we should show live scoring screen
+  if (activeMatch) {
+    console.log('🔍 Checking active match:', {
+      id: activeMatch.id,
+      status: activeMatch.status,
+      hasInnings: !!activeMatch.innings,
+      inningsLength: activeMatch.innings?.length
+    });
+    
+    if (activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
+      console.log('✅ Showing LiveScoringScreen');
+      return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
+    }
 
-  if (activeMatch && activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
-    return <MatchSummaryScreen match={activeMatch} onBack={() => setActiveMatch(null)} />;
+    if (activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
+      console.log('⚠️ Match is live but no innings data');
+      return <MatchSummaryScreen match={activeMatch} onBack={() => setActiveMatch(null)} />;
+    }
   }
 
   if (showMatchSummary) {
@@ -487,13 +499,18 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
       }} 
       onStart={(match) => { 
         console.log('🏏 Match started:', match.id);
-        setActiveMatch(match); 
+        console.log('🏏 Match innings:', match.innings?.length);
+        console.log('🏏 Match status:', match.status);
+        
+        // Clear create match state first
         setShowCreateMatch(false); 
         setLeagueMatchSetup(null);
-        // Force re-render after a short delay
+        
+        // Set active match after a small delay to ensure state is cleared
         setTimeout(() => {
-          setActiveMatch({...match});
-        }, 100);
+          console.log('🏏 Setting active match...');
+          setActiveMatch(match);
+        }, 50);
       }} 
     />;
   }
@@ -1523,7 +1540,17 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
       leagueId: league?.id
     };
 
+    console.log('✅ Match object created:', {
+      id: match.id,
+      status: match.status,
+      inningsLength: match.innings.length,
+      hasCurrentBatsmen: !!match.innings[0].currentBatsmen,
+      hasCurrentBowler: !!match.innings[0].currentBowler
+    });
+
     await saveMatch(match);
+    
+    console.log('🚀 Calling onStart callback...');
     onStart(match);
   };
 
