@@ -466,22 +466,44 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
   ];
 
   // Check if we should show live scoring screen
+  // Check if we should show live scoring screen
   if (activeMatch) {
     console.log('🔍 Checking active match:', {
       id: activeMatch.id,
       status: activeMatch.status,
       hasInnings: !!activeMatch.innings,
-      inningsLength: activeMatch.innings?.length
+      inningsLength: activeMatch.innings?.length,
+      currentInnings: activeMatch.currentInnings
     });
     
+    // If match is live and has innings data, show LiveScoringScreen
     if (activeMatch.status === 'live' && activeMatch.innings && activeMatch.innings.length > 0) {
-      console.log('✅ Showing LiveScoringScreen');
-      return <LiveScoringScreen match={activeMatch} onBack={() => setActiveMatch(null)} onUpdate={(m) => { setActiveMatch(m); saveMatch(m); }} />;
+      console.log('✅ Showing LiveScoringScreen for match:', activeMatch.id);
+      return <LiveScoringScreen 
+        match={activeMatch} 
+        onBack={() => {
+          console.log('🔙 Going back from LiveScoringScreen');
+          setActiveMatch(null);
+        }} 
+        onUpdate={(m) => { 
+          console.log('🔄 Updating match:', m.id);
+          setActiveMatch(m); 
+          saveMatch(m); 
+        }} 
+      />;
     }
 
-    if (activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
-      console.log('⚠️ Match is live but no innings data');
+    // If match is completed, show summary
+    if (activeMatch.status === 'completed') {
+      console.log('✅ Showing MatchSummaryScreen for completed match:', activeMatch.id);
       return <MatchSummaryScreen match={activeMatch} onBack={() => setActiveMatch(null)} />;
+    }
+
+    // If match is live but no innings data, show error
+    if (activeMatch.status === 'live' && (!activeMatch.innings || activeMatch.innings.length === 0)) {
+      console.error('❌ Match is live but no innings data!');
+      alert('Error: Match data is incomplete. Please try again.');
+      setActiveMatch(null);
     }
   }
 
@@ -494,23 +516,31 @@ function HomeScreen({ user, onLogout, onAdmin, onProfile }: { user: User; onLogo
       user={user} 
       league={leagueMatchSetup || undefined} 
       onBack={() => { 
+        console.log('🔙 Going back from CreateMatchScreen');
         setShowCreateMatch(false); 
         setLeagueMatchSetup(null); 
       }} 
       onStart={(match) => { 
-        console.log('🏏 Match started:', match.id);
-        console.log('🏏 Match innings:', match.innings?.length);
-        console.log('🏏 Match status:', match.status);
+        console.log('🏏 Match started callback triggered:', {
+          matchId: match.id,
+          status: match.status,
+          inningsCount: match.innings?.length,
+          hasCurrentBatsmen: match.innings?.[0]?.currentBatsmen ? true : false,
+          hasCurrentBowler: match.innings?.[0]?.currentBowler ? true : false
+        });
         
         // Clear create match state first
         setShowCreateMatch(false); 
         setLeagueMatchSetup(null);
         
-        // Set active match after a small delay to ensure state is cleared
+        // Set active match immediately
+        console.log('🏏 Setting active match...');
+        setActiveMatch(match);
+        
+        // Verify state was set
         setTimeout(() => {
-          console.log('🏏 Setting active match...');
-          setActiveMatch(match);
-        }, 50);
+          console.log('🔍 Verifying active match state...');
+        }, 100);
       }} 
     />;
   }
@@ -1544,14 +1574,19 @@ function CreateMatchScreen({ user, league, onBack, onStart }: { user: User; leag
       id: match.id,
       status: match.status,
       inningsLength: match.innings.length,
-      hasCurrentBatsmen: !!match.innings[0].currentBatsmen,
-      hasCurrentBowler: !!match.innings[0].currentBowler
+      currentBatsmen: match.innings[0].currentBatsmen,
+      currentBowler: match.innings[0].currentBowler,
+      battingTeamId: match.innings[0].battingTeamId,
+      bowlingTeamId: match.innings[0].bowlingTeamId
     });
 
+    console.log('💾 Saving match to storage...');
     await saveMatch(match);
+    console.log('✅ Match saved successfully');
     
     console.log('🚀 Calling onStart callback...');
     onStart(match);
+    console.log('✅ onStart callback completed');
   };
 
   return (
